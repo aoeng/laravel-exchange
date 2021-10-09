@@ -1,0 +1,39 @@
+{
+    "name": "aoeng/laravel-exchange",
+    "type": "library",
+    "description": "Exchange API Like the official document interface, Support for arbitrary extension.",
+    "license": "MIT",
+    "keywords": [
+        "bitmex",
+        "binance",
+        "okex",
+        "huobi",
+        "kucoin",
+        "kumex"
+    ],
+    "authors": [
+        {
+            "name": "Dang",
+            "email": "yofengge@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=7.0",
+        "laravel/framework": "^8.0.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Aoeng\\Laravel\\Exchange\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Aoeng\\Laravel\\Exchange\\ExchangeServiceProvider"
+            ],
+            "aliases": {
+
+            }
+        }
+    }
+}
