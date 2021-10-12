@@ -48,11 +48,19 @@ class OkExchange implements ExchangeInterface
 
         $spotResult = $this->send(false);
 
+        if (isset($spotResult['code']) && $spotResult['code'] != 0) {
+            return $this->error($spotResult['message'], $spotResult['code']);
+        }
+
         $spotSymbols = collect($spotResult)->where('quoteCcy', 'USDT')->keyBy('baseCcy')->toArray();
 
         $this->body = ['instType' => 'SWAP'];
 
         $futureResult = $this->send(false);
+
+        if (isset($futureResult['code']) && $futureResult['code'] != 0) {
+            return $this->error($futureResult['message'], $futureResult['code']);
+        }
 
         $futureSymbols = collect($futureResult)->where('settleCcy', 'USDT')->where('state', 'live')->keyBy('ctValCcy')->toArray();
         foreach ($spotSymbols as $baseAsset => $spotSymbol) {

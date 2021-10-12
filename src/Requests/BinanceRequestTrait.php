@@ -62,7 +62,7 @@ trait BinanceRequestTrait
 
             return $format ? $this->response($data) : $data;
         } catch (RequestException $e) {
-            if (method_exists($e->getResponse(), 'getBody')) {
+            if (!empty($e->getResponse()) && method_exists($e->getResponse(), 'getBody')) {
                 $contents = $e->getResponse()->getBody()->getContents();
 
                 $temp = json_decode($contents, true);
@@ -71,7 +71,7 @@ trait BinanceRequestTrait
                 }
             }
 
-            return $this->error('Server error:' . $e->getCode());
+            return $this->error('Server error:' . $e->getMessage());
         }
     }
 

@@ -2,7 +2,7 @@
 
 return [
     'default'   => 'binance',
-    'proxy'     => '192.168.10.1:1080',
+    'proxy'     => '',
     'exchanges' => [
         'binance' => [
             'key'    => '',

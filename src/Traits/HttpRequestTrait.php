@@ -25,7 +25,7 @@ trait HttpRequestTrait
     {
         $client = new Client();
 
-        if (config('exchange.proxy', null)) {
+        if (!empty(config('exchange.proxy', null))) {
             $this->options = array_merge([
                 'proxy'  => config('exchange.proxy', null),
                 'verify' => false

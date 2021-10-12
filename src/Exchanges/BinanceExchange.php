@@ -56,11 +56,19 @@ class BinanceExchange implements ExchangeInterface
 
         $spotResult = $this->send(false);
 
+        if (isset($spotResult['code']) && $spotResult['code'] != 0) {
+            return $this->error($spotResult['message'], $spotResult['code']);
+        }
+
         $spotSymbols = collect($spotResult['symbols'])->where('quoteAsset', 'USDT')->keyBy('baseAsset')->toArray();
 
         $this->url = $this->futureHost . '/fapi/v1/exchangeInfo';
 
         $futureResult = $this->send(false);
+
+        if (isset($futureResult['code']) && $futureResult['code'] != 0) {
+            return $this->error($futureResult['message'], $futureResult['code']);
+        }
 
         $futureSymbols = collect($futureResult['symbols'])->keyBy('baseAsset')->toArray();
 
@@ -146,6 +154,10 @@ class BinanceExchange implements ExchangeInterface
         $this->url = $this->futureHost . '/fapi/v1/positionSide/dual';
 
         $result = $this->send(false);
+
+        if (isset($result['code']) && $result['code'] != 0) {
+            return $this->error($result['message'], $result['code']);
+        }
 
         return $this->response($result['dualSidePosition']);
     }
