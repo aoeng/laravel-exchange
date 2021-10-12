@@ -15,13 +15,8 @@ trait HttpRequestTrait
 
     private $body = [];
 
-    private $options = [
-        'proxy'  => [
-            'https' => '192.168.10.1:1080',
-            'http'  => '192.168.10.1:1080',
-        ],
-        'verify' => false
-    ];
+    private $options = [];
+
 
     /**
      * @throws GuzzleException
@@ -29,6 +24,13 @@ trait HttpRequestTrait
     public function request()
     {
         $client = new Client();
+
+        if (config('exchange.proxy', null)) {
+            $this->options = array_merge([
+                'proxy'  => config('exchange.proxy', null),
+                'verify' => false
+            ], $this->options);
+        }
 
         $response = $client->request($this->method, $this->url, $this->options);
 
