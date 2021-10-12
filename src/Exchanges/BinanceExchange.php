@@ -227,5 +227,4 @@ class BinanceExchange implements ExchangeInterface
 
         return $this->send();
     }
-
 }

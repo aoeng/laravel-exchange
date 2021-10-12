@@ -3,6 +3,8 @@
 namespace Aoeng\Laravel\Exchange;
 
 
+use Aoeng\Laravel\Exchange\Exchanges\BinanceExchange;
+use Aoeng\Laravel\Exchange\Exchanges\OkExchange;
 use Illuminate\Support\ServiceProvider;
 
 class ExchangeServiceProvider extends ServiceProvider
@@ -19,6 +21,14 @@ class ExchangeServiceProvider extends ServiceProvider
     {
         $this->app->singleton('exchange', function ($app) {
             return new ExchangeManager($app);
+        });
+
+        $this->app->singleton('binance-ex', function ($app) {
+            return new BinanceExchange();
+        });
+
+        $this->app->singleton('ok-ex', function ($app) {
+            return new OkExchange();
         });
 
     }
