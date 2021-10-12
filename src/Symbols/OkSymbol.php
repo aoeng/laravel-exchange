@@ -3,6 +3,7 @@
 namespace Aoeng\Laravel\Exchange\Symbols;
 
 use Aoeng\Laravel\Exchange\Contracts\SymbolInterface;
+use Aoeng\Laravel\Exchange\Exceptions\ExchangeException;
 use Aoeng\Laravel\Exchange\Requests\BinanceRequestTrait;
 use Aoeng\Laravel\Exchange\Requests\OkRequestTrait;
 use Aoeng\Laravel\Exchange\Traits\SymbolTrait;
@@ -51,12 +52,21 @@ class OkSymbol implements SymbolInterface
 
     public function symbol($symbol = [])
     {
+        if (!isset($symbol['symbol'])) {
+            throw new ExchangeException('交易对[symbol]不存在');
+        }
+
         foreach ($symbol as $key => $value) {
+            $key = Str::camel($key);
             $this->$key = $value;
         }
 
-        if (!isset($symbol['symbolFuture'])) {
-            $this->symbolFuture = $symbol['symbol'];
+        if (!Str::contains($this->symbol, '-')) {
+            $this->symbol = Str::replace('USDT', '-USDT', $this->symbol);
+        }
+
+        if (!isset($symbol['contractSymbol']) || !isset($symbol['contract_symbol'])) {
+            $this->contractSymbol = $this->symbol . '-SWAP';
         }
 
         return $this;
@@ -70,7 +80,7 @@ class OkSymbol implements SymbolInterface
         $this->path = '/api/v5/market/index-candles';
 
         $this->body = [
-            'instId' => $env == self::ENV_SPOT ? $this->symbol : $this->symbolFuture,
+            'instId' => $env == self::ENV_SPOT ? $this->symbol : $this->contractSymbol,
             'bar'    => $this->formatPeriod($period),
             'limit'  => $limit
         ];
@@ -83,7 +93,7 @@ class OkSymbol implements SymbolInterface
     {
         $this->method = 'POST';
         $this->path = '/api/v5/account/set-leverage';
-        $this->body = ['instId' => $this->symbolFuture, 'lever' => $leverage, 'mgnMode' => $marginType, 'posSide' => $positionSide];
+        $this->body = ['instId' => $this->contractSymbol, 'lever' => $leverage, 'mgnMode' => $marginType, 'posSide' => $positionSide];
 
         $result = $this->send(false);
 
@@ -94,7 +104,7 @@ class OkSymbol implements SymbolInterface
     {
         $this->method = 'GET';
         $this->path = '/api/v5/account/max-size';
-        $this->body = ['instId' => $this->symbolFuture, 'tdMode' => $marginType];
+        $this->body = ['instId' => $this->contractSymbol, 'tdMode' => $marginType];
 
         return $this->send();
     }
@@ -113,7 +123,7 @@ class OkSymbol implements SymbolInterface
         $this->method = 'POST';
         $this->path = '/api/v5/account/position/margin-balance';
         $this->body = [
-            'instId'  => $this->symbolFuture,
+            'instId'  => $this->contractSymbol,
             'amt'     => $amount,
             'type'    => $type,
             'posSide' => $positionSide
@@ -126,7 +136,7 @@ class OkSymbol implements SymbolInterface
     {
         $this->method = 'POST';
         $this->path = '/api/v5/trade/order';
-        $this->body = array_merge(['instId' => $this->symbolFuture], array_filter([
+        $this->body = array_merge(['instId' => $this->contractSymbol], array_filter([
             'tdMode'  => $mode,
             'clOrdId' => $newClientOrderId,
             'side'    => $side,
@@ -143,7 +153,7 @@ class OkSymbol implements SymbolInterface
     {
         $this->method = 'POST';
         $this->path = '/api/v5/trade/order';
-        $this->body = array_merge(['instId' => $this->symbolFuture], array_filter([
+        $this->body = array_merge(['instId' => $this->contractSymbol], array_filter([
             'tdMode'  => self::MARGIN_TYPE_CASH,
             'clOrdId' => $newClientOrderId,
             'side'    => $side,
@@ -160,7 +170,7 @@ class OkSymbol implements SymbolInterface
         $this->method = 'POST';
         $this->path = '/api/swap/v3/order_algo';
         $this->body = [
-            'instrument_id' => $this->symbolFuture,
+            'instrument_id' => $this->contractSymbol,
             'type'          => $orderType,
             'order_type'    => 2,
             'size'          => $quantity,
@@ -231,7 +241,7 @@ class OkSymbol implements SymbolInterface
         $this->method = 'POST';
         if ($type == self::ORDER_CREATE_TYPE_N) {
             $this->path = '/api/v5/trade/cancel-order';
-            $this->body = array_merge(['instId' => $env == self::ENV_SPOT ? $this->symbol : $this->symbolFuture], array_filter([
+            $this->body = array_merge(['instId' => $env == self::ENV_SPOT ? $this->symbol : $this->contractSymbol], array_filter([
                 'ordId'   => $orderId,
                 'clOrdId' => $origClientOrderId
             ]));
@@ -244,7 +254,7 @@ class OkSymbol implements SymbolInterface
                 ]));
             } else {
                 $this->path = '/api/swap/v3/cancel_algos';
-                $this->body = array_merge(['instrument_id' => $this->symbolFuture], array_filter([
+                $this->body = array_merge(['instrument_id' => $this->contractSymbol], array_filter([
                     'algo_ids'   => [$orderId],
                     'order_type' => 2
                 ]));
@@ -259,7 +269,7 @@ class OkSymbol implements SymbolInterface
     {
         $this->method = 'GET';
         $this->path = '/api/v5/trade/order';
-        $this->body = array_merge(['instId' => $env == self::ENV_SPOT ? $this->symbol : $this->symbolFuture], array_filter([
+        $this->body = array_merge(['instId' => $env == self::ENV_SPOT ? $this->symbol : $this->contractSymbol], array_filter([
             'ordId'   => $orderId,
             'clOrdId' => $origClientOrderId
         ]));
@@ -272,7 +282,7 @@ class OkSymbol implements SymbolInterface
     {
         $this->method = 'GET';
         $this->path = '/api/v5/trade/fills';
-        $this->body = array_merge(['instId' => $env == self::ENV_SPOT ? $this->symbol : $this->symbolFuture], array_filter([
+        $this->body = array_merge(['instId' => $env == self::ENV_SPOT ? $this->symbol : $this->contractSymbol], array_filter([
             'instType' => $env,
             'before'   => $fromId,
             'limit'    => $limit
@@ -286,9 +296,9 @@ class OkSymbol implements SymbolInterface
     {
         $this->method = 'GET';
         $this->path = '/api/v5/trade/orders-pending';
-        $this->body = array_merge(['instId' => $env == self::ENV_SPOT ? $this->symbol : $this->symbolFuture], array_filter([
-            'before'   => $orderId,
-            'limit'    => $limit
+        $this->body = array_merge(['instId' => $env == self::ENV_SPOT ? $this->symbol : $this->contractSymbol], array_filter([
+            'before' => $orderId,
+            'limit'  => $limit
         ]));
 
         return $this->send();
@@ -298,9 +308,9 @@ class OkSymbol implements SymbolInterface
     {
         $this->method = 'GET';
         $this->path = '/api/v5/trade/orders-history';
-        $this->body = array_merge(['instId' => $env == self::ENV_SPOT ? $this->symbol : $this->symbolFuture], array_filter([
-            'before'   => $orderId,
-            'limit'    => $limit
+        $this->body = array_merge(['instId' => $env == self::ENV_SPOT ? $this->symbol : $this->contractSymbol], array_filter([
+            'before' => $orderId,
+            'limit'  => $limit
         ]));
 
         return $this->send();
@@ -309,7 +319,7 @@ class OkSymbol implements SymbolInterface
     public function format($spotSymbol = [], $futureSymbol = false)
     {
         $this->symbol = $spotSymbol['instId'] ?? null;
-        $futureSymbol && $this->symbolFuture = $futureSymbol['instId'];
+        $futureSymbol && $this->contractSymbol = $futureSymbol['instId'];
         $this->baseCurrency = $spotSymbol['baseCcy'] ?? null;
         $this->quoteCurrency = $spotSymbol['quoteCcy'] ?? null;
         $this->pricePrecision = intval($futureSymbol ? log($futureSymbol['tickSz'], 0.1) : log($spotSymbol['tickSz'], 0.1));

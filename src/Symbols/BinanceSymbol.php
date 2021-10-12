@@ -3,6 +3,7 @@
 namespace Aoeng\Laravel\Exchange\Symbols;
 
 use Aoeng\Laravel\Exchange\Contracts\SymbolInterface;
+use Aoeng\Laravel\Exchange\Exceptions\ExchangeException;
 use Aoeng\Laravel\Exchange\Requests\BinanceRequestTrait;
 use Aoeng\Laravel\Exchange\Traits\SymbolTrait;
 use GuzzleHttp\Exception\GuzzleException;
@@ -34,13 +35,22 @@ class BinanceSymbol implements SymbolInterface
 
     public function symbol($symbol = [])
     {
+
+        if (!isset($symbol['symbol'])) {
+            throw new ExchangeException('交易对[symbol]不存在');
+        }
+
         foreach ($symbol as $key => $value) {
+            $key = Str::camel($key);
             $this->$key = $value;
+        }
+        if (Str::contains($this->symbol, '-')) {
+            $this->symbol = Str::replace('-', '', $this->symbol);
         }
 
 
-        if (!isset($symbol['symbolFuture'])) {
-            $this->symbolFuture = $symbol['symbol'];
+        if (!isset($symbol['contractSymbol']) || !isset($symbol['contract_symbol'])) {
+            $this->contractSymbol = $this->symbol;
         }
 
         return $this;
@@ -68,7 +78,7 @@ class BinanceSymbol implements SymbolInterface
     {
         $this->method = 'GET';
         $this->url = $this->futureHost . '/fapi/v1/leverageBracket';
-        $this->body = ['symbol' => $this->symbolFuture];
+        $this->body = ['symbol' => $this->contractSymbol];
 
         return $this->send();
     }
@@ -77,7 +87,7 @@ class BinanceSymbol implements SymbolInterface
     {
         $this->method = 'POST';
         $this->url = $this->futureHost . '/fapi/v1/leverage';
-        $this->body = ['symbol' => $this->symbolFuture, 'leverage' => $leverage];
+        $this->body = ['symbol' => $this->contractSymbol, 'leverage' => $leverage];
 
         return $this->send();
     }
@@ -92,7 +102,7 @@ class BinanceSymbol implements SymbolInterface
     {
         $this->method = 'POST';
         $this->url = $this->futureHost . '/fapi/v1/marginType';
-        $this->body = ['symbol' => $this->symbolFuture, 'marginType' => $marginType];
+        $this->body = ['symbol' => $this->contractSymbol, 'marginType' => $marginType];
 
         return $this->send();
     }
@@ -110,7 +120,7 @@ class BinanceSymbol implements SymbolInterface
         $this->method = 'POST';
         $this->url = $this->futureHost . '/fapi/v1/positionMargin';
         $this->body = [
-            'symbol'       => $this->symbolFuture,
+            'symbol'       => $this->contractSymbol,
             'amount'       => $amount,
             'type'         => $type,
             'positionSide' => $positionSide
@@ -128,7 +138,7 @@ class BinanceSymbol implements SymbolInterface
     {
         $this->method = 'GET';
         $this->url = $this->futureHost . '/fapi/v2/positionRisk';
-        $this->body = ['symbol' => $this->symbolFuture];
+        $this->body = ['symbol' => $this->contractSymbol];
 
         return $this->send();
     }
@@ -138,7 +148,7 @@ class BinanceSymbol implements SymbolInterface
     {
         $this->method = 'POST';
         $this->url = $this->futureHost . '/fapi/v1/order';
-        $this->body = array_merge(['symbol' => $this->symbolFuture], array_filter(compact('side', 'positionSide', 'type', 'quantity', 'price', 'newClientOrderId')));
+        $this->body = array_merge(['symbol' => $this->contractSymbol], array_filter(compact('side', 'positionSide', 'type', 'quantity', 'price', 'newClientOrderId')));
 
         return $this->send();
     }
@@ -147,7 +157,7 @@ class BinanceSymbol implements SymbolInterface
     {
         $this->method = 'POST';
         $this->url = $this->spotHost . '/api/v3/order';
-        $this->body = array_merge(['symbol' => $this->symbolFuture], array_filter(compact('side', 'type', 'quantity', 'price', 'quoteOrderQty', 'newClientOrderId')));
+        $this->body = array_merge(['symbol' => $this->contractSymbol], array_filter(compact('side', 'type', 'quantity', 'price', 'quoteOrderQty', 'newClientOrderId')));
 
         return $this->send();
     }
@@ -157,7 +167,7 @@ class BinanceSymbol implements SymbolInterface
         $this->method = 'POST';
         $this->url = $this->futureHost . '/fapi/v1/order';
         $this->body = array_merge([
-            'symbol' => $this->symbolFuture,
+            'symbol' => $this->contractSymbol,
             'type'   => self::ORDER_TYPE_TRAILING_STOP_MARKET
         ], array_filter(compact('side', 'positionSide', 'activationPrice', 'quantity', 'callbackRate', 'newClientOrderId')));
 
@@ -222,7 +232,7 @@ class BinanceSymbol implements SymbolInterface
     {
         $this->method = 'GET';
         $this->url = $env == self::ENV_SPOT ? "$this->spotHost/api/v3/order" : "$this->futureHost/fapi/v1/order";
-        $this->body = array_merge(['symbol' => $this->symbolFuture], array_filter(compact('orderId', 'origClientOrderId')));
+        $this->body = array_merge(['symbol' => $this->contractSymbol], array_filter(compact('orderId', 'origClientOrderId')));
 
         return $this->send();
     }
@@ -232,7 +242,7 @@ class BinanceSymbol implements SymbolInterface
     {
         $this->method = 'GET';
         $this->url = $env == self::ENV_SPOT ? "$this->spotHost/api/v3/myTrades" : "$this->futureHost/fapi/v1/userTrades";
-        $this->body = array_merge(['symbol' => $this->symbolFuture], array_filter(compact('fromId', 'startTime', 'endTime', 'limit')));
+        $this->body = array_merge(['symbol' => $this->contractSymbol], array_filter(compact('fromId', 'startTime', 'endTime', 'limit')));
 
         return $this->send();
     }
@@ -242,7 +252,7 @@ class BinanceSymbol implements SymbolInterface
     {
         $this->method = 'GET';
         $this->url = $env == self::ENV_SPOT ? "$this->spotHost/api/v3/allOrders" : "$this->futureHost/fapi/v1/allOrders";
-        $this->body = array_merge(['symbol' => $this->symbolFuture], array_filter(compact('orderId', 'startTime', 'endTime', 'limit')));
+        $this->body = array_merge(['symbol' => $this->contractSymbol], array_filter(compact('orderId', 'startTime', 'endTime', 'limit')));
 
         return $this->send();
     }
@@ -250,7 +260,7 @@ class BinanceSymbol implements SymbolInterface
     public function format($spotSymbol = [], $futureSymbol = false)
     {
         $this->symbol = $spotSymbol['symbol'] ?? null;
-        $futureSymbol && $this->symbolFuture = $futureSymbol['symbol'];
+        $futureSymbol && $this->contractSymbol = $futureSymbol['symbol'];
         $this->baseCurrency = $spotSymbol['baseAsset'] ?? null;
         $this->quoteCurrency = $spotSymbol['quoteAsset'] ?? null;
         $this->pricePrecision = $futureSymbol['pricePrecision'] ?? $spotSymbol['quotePrecision'];

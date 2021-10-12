@@ -8,7 +8,7 @@ trait SymbolTrait
 
     public $symbol;
 
-    public $symbolFuture = false;
+    public $contractSymbol = false;
 
     public $baseCurrency;
 
@@ -29,7 +29,7 @@ trait SymbolTrait
     {
         return [
             'symbol'            => $this->symbol,
-            'symbolFuture'      => $this->symbolFuture,
+            'contractSymbol'      => $this->contractSymbol,
             'baseCurrency'      => $this->baseCurrency,
             'quoteCurrency'     => $this->quoteCurrency,
             'pricePrecision'    => $this->pricePrecision,

@@ -18,7 +18,7 @@ class ExchangeException extends Exception
      * @param int $code
      * @param array $raw
      */
-    public function __construct($message, $code, array $raw = [])
+    public function __construct($message, $code = 301, array $raw = [])
     {
         parent::__construct($message, intval($code));
         $this->raw = $raw;
