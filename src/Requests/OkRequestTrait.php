@@ -64,7 +64,6 @@ trait OkRequestTrait
         }
 
         try {
-            if(config('exchange.default'))
 
             $data = json_decode($this->request(), true);
 
