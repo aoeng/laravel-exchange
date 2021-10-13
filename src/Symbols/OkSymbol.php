@@ -75,7 +75,7 @@ class OkSymbol implements SymbolInterface
     /**
      * @throws GuzzleException
      */
-    public function klins($env, $period, $limit = 100)
+    public function klins($env, $period, $limit = 100, $before = 0)
     {
         $this->path = '/api/v5/market/candles';
 
@@ -84,6 +84,10 @@ class OkSymbol implements SymbolInterface
             'bar'    => $this->formatPeriod($period),
             'limit'  => $limit
         ];
+
+        if ($before > 0) {
+            $this->body['before'] = $before;
+        }
 
         return $this->send();
     }
