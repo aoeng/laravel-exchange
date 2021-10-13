@@ -75,19 +75,15 @@ class OkSymbol implements SymbolInterface
     /**
      * @throws GuzzleException
      */
-    public function klins($env, $period, $limit = 100, $before = 0)
+    public function klins($env, $period, $limit = 100, $before = 0, $after = 0)
     {
         $this->path = '/api/v5/market/candles';
 
-        $this->body = [
+        $this->body = array_merge([
             'instId' => $env == self::ENV_SPOT ? $this->symbol : $this->contractSymbol,
             'bar'    => $this->formatPeriod($period),
             'limit'  => $limit
-        ];
-
-        if ($before > 0) {
-            $this->body['before'] = $before;
-        }
+        ], array_filter(compact('before', 'after')));
 
         return $this->send();
     }
