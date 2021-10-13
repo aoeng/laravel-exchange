@@ -65,7 +65,7 @@ class OkSymbol implements SymbolInterface
             $this->symbol = Str::replace('USDT', '-USDT', $this->symbol);
         }
 
-        if (!isset($symbol['contractSymbol']) || !isset($symbol['contract_symbol'])) {
+        if (!isset($symbol['contractSymbol']) || !isset($symbol['contract_symbol']) || !Str::contains($this->contractSymbol, '-SWAP')) {
             $this->contractSymbol = $this->symbol . '-SWAP';
         }
 

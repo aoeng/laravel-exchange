@@ -70,8 +70,11 @@ class BinanceExchange implements ExchangeInterface
             return $this->error($futureResult['message'], $futureResult['code']);
         }
 
-        $futureSymbols = collect($futureResult['symbols'])->keyBy('baseAsset')->toArray();
-
+        $futureSymbols = collect($futureResult['symbols'])
+            ->where('contractType', 'PERPETUAL')
+            ->where('quoteAsset', 'USDT')
+            ->where('status', 'TRADING')->keyBy('baseAsset')->toArray();
+     
         foreach ($spotSymbols as $baseAsset => $spotSymbol) {
             $futureSymbol = $futureSymbols[$baseAsset] ?? false;
             $symbols[] = (new BinanceSymbol())->format($spotSymbol, $futureSymbol);
