@@ -77,7 +77,7 @@ class OkSymbol implements SymbolInterface
      */
     public function klins($env, $period, $limit = 100)
     {
-        $this->path = '/api/v5/market/index-candles';
+        $this->path = '/api/v5/market/candles';
 
         $this->body = [
             'instId' => $env == self::ENV_SPOT ? $this->symbol : $this->contractSymbol,

@@ -48,10 +48,7 @@ class BinanceSymbol implements SymbolInterface
             $this->symbol = Str::replace('-', '', $this->symbol);
         }
 
-
-        if (!isset($symbol['contractSymbol']) || !isset($symbol['contract_symbol'])) {
-            $this->contractSymbol = $this->symbol;
-        }
+        $this->contractSymbol = $this->symbol;
 
         return $this;
     }
