@@ -114,10 +114,12 @@ class OkExchange implements ExchangeInterface
      * @return array|mixed
      * @throws GuzzleException
      */
-    public function balance()
+    public function balance($ccy = null)
     {
         $this->method = 'GET';
         $this->path = '/api/v5/account/balance';
+
+        $this->body = array_filter(compact('ccy'));
 
         return $this->send();
     }

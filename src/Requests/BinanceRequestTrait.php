@@ -66,7 +66,8 @@ trait BinanceRequestTrait
                 $contents = $e->getResponse()->getBody()->getContents();
 
                 $temp = json_decode($contents, true);
-                if (!empty($temp)) {
+
+                if (!empty($temp) && isset($temp['msg'])) {
                     return $this->error($temp['msg'], $temp['code']);
                 }
             }

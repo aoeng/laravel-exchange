@@ -74,7 +74,7 @@ class BinanceExchange implements ExchangeInterface
             ->where('contractType', 'PERPETUAL')
             ->where('quoteAsset', 'USDT')
             ->where('status', 'TRADING')->keyBy('baseAsset')->toArray();
-     
+
         foreach ($spotSymbols as $baseAsset => $spotSymbol) {
             $futureSymbol = $futureSymbols[$baseAsset] ?? false;
             $symbols[] = (new BinanceSymbol())->format($spotSymbol, $futureSymbol);
@@ -192,7 +192,21 @@ class BinanceExchange implements ExchangeInterface
         $this->method = 'GET';
         $this->url = $this->futureHost . '/fapi/v2/balance';
 
-        return $this->send();
+        $futureResult = $this->send();
+
+        if ($futureResult['code'] != 0) {
+            return $this->error($futureResult['message'], $futureResult['code']);
+        }
+
+        $this->method = 'GET';
+        $this->url = $this->spotHost . '/api/v3/account';
+        $spotResult = $this->send();
+
+        if ($spotResult['code'] != 0) {
+            return $this->error($spotResult['message'], $spotResult['code']);
+        }
+
+        return $this->response(['spot' => $spotResult['data'], 'future' => $futureResult['data']]);
     }
 
     /**
