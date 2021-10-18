@@ -78,6 +78,18 @@ class OkExchange implements ExchangeInterface
 
 
     /**
+     * 服务器时间
+     * @throws GuzzleException
+     */
+    public function time()
+    {
+        $this->method = 'GET';
+        $this->path = '/api/v5/public/time';
+
+        return $this->send();
+    }
+
+    /**
      * 查看当前账户的配置信息
      * @return array [true: 双向 ,false: 单向]
      * @throws GuzzleException
