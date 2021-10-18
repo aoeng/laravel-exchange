@@ -2,19 +2,16 @@
 
 namespace Aoeng\Laravel\Exchange\Exchanges;
 
+use Aoeng\Laravel\Exchange\Adapters\Ok;
 use Aoeng\Laravel\Exchange\Contracts\ExchangeInterface;
+use Aoeng\Laravel\Exchange\Facades\Exchange;
 use Aoeng\Laravel\Exchange\Requests\OkRequestTrait;
 use Aoeng\Laravel\Exchange\Symbols\OkSymbol;
-use Aoeng\Laravel\Exchange\Traits\HttpRequestTrait;
 use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\Exception\RequestException;
 
 class OkExchange implements ExchangeInterface
 {
     use OkRequestTrait;
-
-    const POSITION_MODE_DOUBLE = 'long_short_mode';
-    const POSITION_MODE_SINGLE = 'net_mode';
 
     protected $config;
 
@@ -26,6 +23,8 @@ class OkExchange implements ExchangeInterface
         $this->key = $config['key'] ?? null;
         $this->secret = $config['secret'] ?? null;
         $this->passphrase = $config['passphrase'] ?? null;
+        $this->simulated = $config['simulated'] ?? false;
+        $this->proxy = $config['proxy'] ?? null;
     }
 
     /**
@@ -44,7 +43,7 @@ class OkExchange implements ExchangeInterface
     public function symbols()
     {
         $this->path = '/api/v5/public/instruments';
-        $this->body = ['instType' => 'SPOT'];
+        $this->body = ['instType' => Exchange::ENV_SPOT];
 
         $spotResult = $this->send(false);
 
@@ -54,7 +53,7 @@ class OkExchange implements ExchangeInterface
 
         $spotSymbols = collect($spotResult)->where('quoteCcy', 'USDT')->keyBy('baseCcy')->toArray();
 
-        $this->body = ['instType' => 'SWAP'];
+        $this->body = ['instType' => Exchange::ENV_SWAP];
 
         $futureResult = $this->send(false);
 
@@ -64,7 +63,7 @@ class OkExchange implements ExchangeInterface
 
         $futureSymbols = collect($futureResult)->where('settleCcy', 'USDT')->where('state', 'live')->keyBy('ctValCcy')->toArray();
         foreach ($spotSymbols as $baseAsset => $spotSymbol) {
-            $symbols[] = (new OkSymbol())->format($spotSymbol, $futureSymbols[$baseAsset] ?? false);
+            $symbols[] = Ok::formatSymbol($spotSymbol, $futureSymbols[$baseAsset] ?? false);
         }
 
         return $this->response($symbols ?? []);
@@ -95,15 +94,15 @@ class OkExchange implements ExchangeInterface
 
     /**
      * 更改持仓状态
-     * @param string $posMode ["long_short_mode": 双向持仓模式；"net_mode": 单向持仓模式]
+     * @param string $positionMode ["long_short_mode": 双向持仓模式；"net_mode": 单向持仓模式]
      * @return array|mixed
      * @throws GuzzleException
      */
-    public function changePositionSide(string $posMode = self::POSITION_MODE_DOUBLE)
+    public function changePositionSide(string $positionMode = Exchange::POSITION_MODE_DOUBLE)
     {
         $this->method = 'POST';
         $this->path = '/api/v5/account/set-position-mode';
-        $this->body = compact('posMode');
+        $this->body = ['posMode' => Ok::$positionModeMap[$positionMode]];
 
         return $this->send();
     }
@@ -126,7 +125,7 @@ class OkExchange implements ExchangeInterface
 
     /**
      * 账户持仓信息
-     * @return array|mixed
+     * @return array
      * @throws GuzzleException
      */
     public function positions()
@@ -134,9 +133,79 @@ class OkExchange implements ExchangeInterface
         $this->method = 'GET';
         $this->path = '/api/v5/account/positions';
 
-        return $this->send();
+        $result = $this->send();
+
+        if ($result['code'] != 0) {
+            return $this->error($result['message'], $result['code']);
+        }
+
+        $crossPs = collect($result['data'])->where('instType', Exchange::ENV_SWAP)
+            ->where('mgnMode', Ok::$positionTypeMap[Exchange::POSITION_TYPE_CROSSED])
+            ->keyBy('instId')->keys()->chunk(5)->toArray();
+
+        $isolatedPs = collect($result['data'])->where('instType', Exchange::ENV_SWAP)
+            ->where('mgnMode', Ok::$positionTypeMap[Exchange::POSITION_TYPE_ISOLATED])
+            ->keyBy('instId')->keys()->chunk(5)->toArray();
+
+        $ms = [];
+        if (!empty($crossPs)) {
+            foreach ($crossPs as $p) {
+                $res = $this->maxSide($p);
+                if ($res['code'] != 0) {
+                    continue;
+                }
+                $ms[Exchange::POSITION_TYPE_CROSSED] = array_merge($ms, $res['data']);
+            }
+            $ms[Exchange::POSITION_TYPE_CROSSED] = collect($ms[Exchange::POSITION_TYPE_CROSSED])
+                ->keyBy('instId')->toArray();
+        }
+
+        if (!empty($isolatedPs)) {
+            foreach ($isolatedPs as $p) {
+                $res = $this->maxSide($p);
+                if ($res['code'] != 0) {
+                    continue;
+                }
+                $ms[Exchange::POSITION_TYPE_ISOLATED] = array_merge($ms, $res['data']);
+            }
+            $ms[Exchange::POSITION_TYPE_ISOLATED] = collect($ms[Exchange::POSITION_TYPE_ISOLATED])
+                ->keyBy('instId')->toArray();
+        }
+
+        $positions = [];
+
+        foreach ($result['data'] as $position) {
+            if (!isset($position['instType']) || $position['instType'] != Exchange::ENV_SWAP) {
+                continue;
+            }
+
+            $maxSize = [];
+            if ($position['mgnMode'] == Ok::$positionTypeMap[Exchange::POSITION_TYPE_CROSSED]) {
+                $maxSize = $ms[Exchange::POSITION_TYPE_CROSSED][$position['instId']] ?? [];
+            }
+
+            if ($position['mgnMode'] == Ok::$positionTypeMap[Exchange::POSITION_TYPE_ISOLATED]) {
+                $maxSize = $ms[Exchange::POSITION_TYPE_ISOLATED][$position['instId']] ?? [];
+            }
+
+            $positions[] = Ok::formatPosition($position, $maxSize);
+        }
+
+        return $this->response($positions);
     }
 
+
+    public function maxSide(array $symbols = [], $positionType = Exchange::POSITION_TYPE_CROSSED)
+    {
+        $this->method = 'GET';
+        $this->path = '/api/v5/account/max-size';
+        $this->body = [
+            'instId' => implode(',', $symbols),
+            'tdMode' => Ok::$positionTypeMap[$positionType]
+        ];
+
+        return $this->send();
+    }
 
     /**
      * 用户持仓风险
@@ -146,9 +215,10 @@ class OkExchange implements ExchangeInterface
     public function positionRisk()
     {
         $this->method = 'GET';
-        $this->url = '/api/v5/account/account-position-risk';
-        $this->body = ['instType' => 'SWAP'];
+        $this->path = '/api/v5/account/account-position-risk';
+        $this->body = ['instType' => Exchange::ENV_SWAP];
 
         return $this->send();
     }
+
 }

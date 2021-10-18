@@ -3,8 +3,15 @@
 namespace Aoeng\Laravel\Exchange\Contracts;
 
 
+use Aoeng\Laravel\Exchange\Facades\Exchange;
+
 /**
- * @method keySecret(mixed $key, mixed|null $secret)
+ * @method keySecret(string $key, string $secret, string $passphrase = null)
+ * @method balance()
+ * @method positions()
+ * @method positionSide()
+ * @method changePositionSide(string $positionMode = Exchange::POSITION_MODE_DOUBLE)
+ * @method transfer($amount, $type = Exchange::TRANSFER_SPOT2SWAP, $asset = 'USDT')
  */
 interface ExchangeInterface
 {

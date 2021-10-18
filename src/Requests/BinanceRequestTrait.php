@@ -49,7 +49,7 @@ trait BinanceRequestTrait
 
         $this->checked = true;
 
-        $query = http_build_query($this->body, '', '&');
+        $query = http_build_query($this->body);
 
         if (!empty($this->secret)) {
             $query = $query . '&signature=' . hash_hmac('sha256', $query, $this->secret);

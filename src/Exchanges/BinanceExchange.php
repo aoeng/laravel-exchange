@@ -2,13 +2,12 @@
 
 namespace Aoeng\Laravel\Exchange\Exchanges;
 
+use Aoeng\Laravel\Exchange\Adapters\Binance;
 use Aoeng\Laravel\Exchange\Contracts\ExchangeInterface;
+use Aoeng\Laravel\Exchange\Facades\Exchange;
 use Aoeng\Laravel\Exchange\Requests\BinanceRequestTrait;
 use Aoeng\Laravel\Exchange\Symbols\BinanceSymbol;
-use Aoeng\Laravel\Exchange\Traits\HttpRequestTrait;
-use Aoeng\Laravel\Exchange\Traits\ResponseTrait;
 use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\Exception\RequestException;
 
 class BinanceExchange implements ExchangeInterface
 {
@@ -19,14 +18,13 @@ class BinanceExchange implements ExchangeInterface
 
     protected $symbol = null;
 
-    const SPOT2FUTURE = 'MAIN_UMFUTURE';
-    const FUTURE2SPOT = 'UMFUTURE_MAIN';
 
     public function __construct($config = null)
     {
         $this->config = $config;
         $this->key = $config['key'] ?? null;
         $this->secret = $config['secret'] ?? null;
+        $this->proxy = $config['proxy'] ?? null;
     }
 
     /**
@@ -76,8 +74,7 @@ class BinanceExchange implements ExchangeInterface
             ->where('status', 'TRADING')->keyBy('baseAsset')->toArray();
 
         foreach ($spotSymbols as $baseAsset => $spotSymbol) {
-            $futureSymbol = $futureSymbols[$baseAsset] ?? false;
-            $symbols[] = (new BinanceSymbol())->format($spotSymbol, $futureSymbol);
+            $symbols[] = Binance::formatSymbol($spotSymbol, $futureSymbols[$baseAsset] ?? false);
         }
 
         return $this->response($symbols ?? []);
@@ -172,8 +169,10 @@ class BinanceExchange implements ExchangeInterface
      * @return array|mixed
      * @throws GuzzleException
      */
-    public function changePositionSide(string $dualSidePosition = 'true')
+    public function changePositionSide(string $dualSidePosition = Exchange::POSITION_MODE_DOUBLE)
     {
+        $dualSidePosition = Binance::$positionModeMap[$dualSidePosition];
+
         $this->method = 'POST';
         $this->url = $this->futureHost . '/fapi/v1/positionSide/dual';
         $this->body = compact('dualSidePosition');
@@ -184,7 +183,7 @@ class BinanceExchange implements ExchangeInterface
 
     /**
      * 账户余额
-     * @return array|mixed
+     * @return array
      * @throws GuzzleException
      */
     public function balance()
@@ -211,7 +210,7 @@ class BinanceExchange implements ExchangeInterface
 
     /**
      * 账户信息
-     * @return array|mixed
+     * @return array
      * @throws GuzzleException
      */
     public function positions()
@@ -219,7 +218,38 @@ class BinanceExchange implements ExchangeInterface
         $this->method = 'GET';
         $this->url = $this->futureHost . '/fapi/v2/account';
 
-        return $this->send();
+        $result = $this->send();
+
+        if ($result['code'] != 0) {
+            return $this->error($result['message'], $result['code']);
+        }
+
+        $this->url = $this->futureHost . '/fapi/v2/positionRisk';
+        $riskResult = $this->send();
+
+        if ($riskResult['code'] != 0) {
+            return $this->error($riskResult['message'], $riskResult['code']);
+        }
+
+        $ps = collect($result['data']['positions'])->keyBy(function ($p) {
+            return $p['symbol'] . $p['positionSide'];
+        })->toArray();
+
+        $rs = collect($riskResult['data'])->keyBy(function ($r) {
+            return $r['symbol'] . $r['positionSide'];
+        })->toArray();
+
+        $positions = [];
+
+        foreach ($ps as $key => $position) {
+            if (floatval($position['positionAmt']) == 0) {
+                continue;
+            }
+
+            $positions[] = Binance::formatPosition($position, $rs[$key] ?? []);
+        }
+
+        return $this->response($positions);
     }
 
     /**
@@ -248,8 +278,10 @@ class BinanceExchange implements ExchangeInterface
         return $this->send();
     }
 
-    public function transfer($amount, $type = self::SPOT2FUTURE, $asset = 'USDT')
+    public function transfer($amount, $type = Exchange::TRANSFER_SPOT2SWAP, $asset = 'USDT')
     {
+        $type = Binance::$transferMap[$type];
+
         $this->method = 'POST';
         $this->url = $this->spotHost . '/sapi/v1/asset/transfer';
         $this->body = compact('type', 'asset', 'amount');

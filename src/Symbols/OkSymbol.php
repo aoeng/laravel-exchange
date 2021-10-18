@@ -2,9 +2,10 @@
 
 namespace Aoeng\Laravel\Exchange\Symbols;
 
+use Aoeng\Laravel\Exchange\Adapters\Ok;
 use Aoeng\Laravel\Exchange\Contracts\SymbolInterface;
 use Aoeng\Laravel\Exchange\Exceptions\ExchangeException;
-use Aoeng\Laravel\Exchange\Requests\BinanceRequestTrait;
+use Aoeng\Laravel\Exchange\Facades\Exchange;
 use Aoeng\Laravel\Exchange\Requests\OkRequestTrait;
 use Aoeng\Laravel\Exchange\Traits\SymbolTrait;
 use GuzzleHttp\Exception\GuzzleException;
@@ -15,39 +16,8 @@ class OkSymbol implements SymbolInterface
     use SymbolTrait, OkRequestTrait;
 
 
-    const SIDE_SELL = 'sell';
-    const SIDE_BUY = 'buy';
-
-
-    const POSITION_SIDE_SPOT = 'SPOT';
-    const POSITION_SIDE_BOTH = 'net';
-    const POSITION_SIDE_LONG = 'long';
-    const POSITION_SIDE_SHORT = 'short';
-
-    const ORDER_TYPE_LIMIT = 'limit';
-    const ORDER_TYPE_MARKET = 'market';
-    const ORDER_TYPE_MAKER = 'post_only';
-    const ORDER_TYPE_FOK = 'fok';
-    const ORDER_TYPE_IOC = 'ioc';
-    const ORDER_TYPE_MARKET_IOC = 'optimal_limit_ioc';
-
     const ORDER_CREATE_TYPE_N = 'n';
     const ORDER_CREATE_TYPE_S = 's';
-
-    const QUANTITY_TYPE_BASE = 'base_ccy';
-    const QUANTITY_TYPE_QUITE = 'quote_ccy';
-
-    const MARGIN_TYPE_ISOLATED = 'isolated';
-    const MARGIN_TYPE_CROSSED = 'cross';
-    const MARGIN_TYPE_CASH = 'cash';
-
-    const ORDER_OPEN_LONG = 1;
-    const ORDER_OPEN_SHORT = 2;
-    const ORDER_CLOSE_LONG = 3;
-    const ORDER_CLOSE_SHORT = 4;
-
-    const MARGIN_ADD = 'add';
-    const MARGIN_SUB = 'reduce';
 
 
     public function symbol($symbol = [])
@@ -80,8 +50,8 @@ class OkSymbol implements SymbolInterface
         $this->path = '/api/v5/market/candles';
 
         $this->body = array_merge([
-            'instId' => $env == self::ENV_SPOT ? $this->symbol : $this->contractSymbol,
-            'bar'    => $this->formatPeriod($period),
+            'instId' => $env == Exchange::ENV_SPOT ? $this->symbol : $this->contractSymbol,
+            'bar'    => Ok::formatPeriod($period),
             'limit'  => $limit
         ], array_filter(compact('before', 'after')));
 
@@ -89,22 +59,30 @@ class OkSymbol implements SymbolInterface
     }
 
 
-    public function changeLever($leverage, $marginType = self::MARGIN_TYPE_CROSSED, $positionSide = self::POSITION_SIDE_BOTH)
+    public function changeLever($leverage, $positionType = Exchange::POSITION_TYPE_CROSSED, $positionSide = Exchange::POSITION_SIDE_BOTH)
     {
         $this->method = 'POST';
         $this->path = '/api/v5/account/set-leverage';
-        $this->body = ['instId' => $this->contractSymbol, 'lever' => $leverage, 'mgnMode' => $marginType, 'posSide' => $positionSide];
+        $this->body = [
+            'instId'  => $this->contractSymbol,
+            'lever'   => $leverage,
+            'mgnMode' => Ok::$positionTypeMap[$positionType],
+            'posSide' => Ok::$positionSideMap[$positionSide]
+        ];
 
         $result = $this->send(false);
 
         return $this->response($result[0]);
     }
 
-    public function maxExchange($marginType = self::MARGIN_TYPE_CROSSED)
+    public function maxExchange($positionType = Exchange::POSITION_TYPE_CROSSED)
     {
         $this->method = 'GET';
         $this->path = '/api/v5/account/max-size';
-        $this->body = ['instId' => $this->contractSymbol, 'tdMode' => $marginType];
+        $this->body = [
+            'instId' => $this->contractSymbol,
+            'tdMode' => Ok::$positionTypeMap[$positionType]
+        ];
 
         return $this->send();
     }
@@ -118,248 +96,160 @@ class OkSymbol implements SymbolInterface
      * @return array|mixed
      * @throws GuzzleException
      */
-    public function changeMargin($amount, string $type = self::MARGIN_ADD, string $positionSide = self::POSITION_SIDE_BOTH)
+    public function changeMargin($amount, string $type = Exchange::MARGIN_CHANGE_ADD, string $positionSide = Exchange::POSITION_SIDE_BOTH)
     {
         $this->method = 'POST';
         $this->path = '/api/v5/account/position/margin-balance';
         $this->body = [
             'instId'  => $this->contractSymbol,
             'amt'     => $amount,
-            'type'    => $type,
-            'posSide' => $positionSide
+            'type'    => Ok::$marginChangeMap[$type],
+            'posSide' => Ok::$positionSideMap[$positionSide]
         ];
 
         return $this->send();
     }
 
-    public function createFutureOrder($quantity, $positionSide = self::POSITION_SIDE_BOTH, $side = self::SIDE_BUY, $mode = self::MARGIN_TYPE_CASH, $type = self::ORDER_TYPE_MARKET, $price = null, $newClientOrderId = null)
+    public function createOrder($quantity, $orderSide = Exchange::ORDER_SIDE_BUY, $orderType = Exchange::ORDER_TYPE_MARKET, $price = null, $quantityType = Exchange::ORDER_QUANTITY_TYPE_BASE, $newClientOrderId = null)
+    {
+        $this->method = 'POST';
+        $this->path = '/api/v5/trade/order';
+        $this->body = array_merge(['instId' => $this->symbol], array_filter([
+            'tdMode'  => Ok::$positionTypeMap[Exchange::POSITION_TYPE_CASH],
+            'clOrdId' => $newClientOrderId,
+            'side'    => Ok::$orderSideMap[$orderSide],
+            'ordType' => Ok::$orderTypeMap[$orderType],
+            'sz'      => $quantity,
+            'px'      => $price,
+            'tgtCcy'  => Ok::$orderQuantityTypeMap[$quantityType],
+        ]));
+
+        $result = $this->send();
+
+        if ($result['code'] != 0) {
+            return $this->error($result['message'], $result['code']);
+        }
+
+        return $this->response(Ok::formatOrder($result['data']));
+    }
+
+    public function createFutureOrder($quantity, $positionSide = Exchange::POSITION_SIDE_BOTH, $orderSide = Exchange::ORDER_SIDE_BUY, $positionMode = Exchange::POSITION_TYPE_CASH, $orderType = Exchange::ORDER_TYPE_MARKET, $price = null, $newClientOrderId = null)
     {
         $this->method = 'POST';
         $this->path = '/api/v5/trade/order';
         $this->body = array_merge(['instId' => $this->contractSymbol], array_filter([
-            'tdMode'  => $mode,
+            'tdMode'  => Ok::$positionModeMap[$positionMode],
             'clOrdId' => $newClientOrderId,
-            'side'    => $side,
-            'posSide' => $positionSide,
-            'ordType' => $type,
+            'side'    => Ok::$orderSideMap[$orderSide],
+            'posSide' => Ok::$positionSideMap[$positionSide],
+            'ordType' => Ok::$orderSideMap[$orderType],
             'sz'      => $quantity,
             'px'      => $price,
         ]));
 
-        return $this->send();
-    }
+        $result = $this->send();
 
-    public function createOrder($quantity, $side = self::SIDE_BUY, $type = self::ORDER_TYPE_MARKET, $price = null, $quantityType = self::QUANTITY_TYPE_BASE, $newClientOrderId = null)
-    {
-        $this->method = 'POST';
-        $this->path = '/api/v5/trade/order';
-        $this->body = array_merge(['instId' => $this->contractSymbol], array_filter([
-            'tdMode'  => self::MARGIN_TYPE_CASH,
-            'clOrdId' => $newClientOrderId,
-            'side'    => $side,
-            'ordType' => $type,
-            'sz'      => $quantity,
-            'px'      => $price,
-            'tgtCcy'  => $quantityType,
-        ]));
-        return $this->send();
-    }
-
-    public function createFutureTrailingOrder($quantity, $activationPrice = null, $callbackRate = 0.1, $orderType = self::ORDER_OPEN_LONG)
-    {
-        $this->method = 'POST';
-        $this->path = '/api/swap/v3/order_algo';
-        $this->body = [
-            'instrument_id' => $this->contractSymbol,
-            'type'          => $orderType,
-            'order_type'    => 2,
-            'size'          => $quantity,
-            'callback_rate' => $callbackRate,
-            'trigger_price' => $activationPrice,
-        ];
-
-        return $this->send();
-    }
-
-    public function createTrailingOrder($quantity, $side = self::SIDE_BUY, $activationPrice = null, $callbackRate = 0.1)
-    {
-        $this->method = 'POST';
-        $this->path = '/api/swap/v3/order_algo';
-        $this->body = [
-            'instrument_id' => $this->symbol,
-            'mode'          => 1,
-            'order_type'    => 2,
-            'size'          => $quantity,
-            'side'          => $side,
-            'callback_rate' => $callbackRate,
-            'trigger_price' => $activationPrice,
-        ];
-
-        return $this->send();
-    }
-
-
-    public function open($positionSide, $volume, $price = 0, $rate = 0)
-    {
-        if ($positionSide == self::POSITION_SIDE_SPOT) {
-            if ($rate == 0) {
-                return $this->createOrder($volume, self::SIDE_BUY, $price == 0 ? self::ORDER_TYPE_MARKET : self::ORDER_TYPE_LIMIT, $price);
-            }
-
-            return $this->createTrailingOrder($volume, self::SIDE_BUY, $price, $rate);
+        if ($result['code'] != 0) {
+            return $this->error($result['message'], $result['code']);
         }
 
-        if ($rate == 0) {
-            return $this->createFutureOrder($volume, $positionSide, $positionSide == self::POSITION_SIDE_SHORT ? self::SIDE_SELL : self::SIDE_BUY, self::MARGIN_TYPE_CROSSED, $price == 0 ? self::ORDER_TYPE_MARKET : self::ORDER_TYPE_LIMIT, $price);
-        }
-
-
-        return $this->createFutureTrailingOrder($volume, $price, $rate, $positionSide == self::POSITION_SIDE_LONG ? self::ORDER_OPEN_LONG : self::ORDER_OPEN_SHORT);
+        return $this->response(Ok::formatOrder($result['data']));
     }
 
-    public function close($positionSide, $volume, $price = 0, $rate = 0)
+
+    public function open($positionSide, $volume, $env = Exchange::ENV_SWAP, $price = 0, $rate = 0)
     {
+        $orderType = $price == 0 ? Ok::$orderTypeMap[Exchange::ORDER_TYPE_MARKET] : Ok::$orderTypeMap[Exchange::ORDER_TYPE_LIMIT];
 
-        if ($positionSide == self::POSITION_SIDE_SPOT) {
-            if (floatval($rate) == 0) {
-                return $this->createOrder($volume, self::SIDE_SELL, $price == 0 ? self::ORDER_TYPE_MARKET : self::ORDER_TYPE_LIMIT, $price);
-            }
-
-            return $this->createTrailingOrder($volume, self::SIDE_SELL, $price, $rate);
+        if ($env == Exchange::ENV_SPOT) {
+            return $this->createOrder($volume, Ok::$orderSideMap[Exchange::ORDER_SIDE_BUY], $orderType, $price);
         }
 
-        if (floatval($rate) == 0) {
-            return $this->createFutureOrder($volume, $positionSide, $positionSide == self::POSITION_SIDE_SHORT ? self::SIDE_BUY : self::SIDE_SELL, self::MARGIN_TYPE_CROSSED, $price == 0 ? self::ORDER_TYPE_MARKET : self::ORDER_TYPE_LIMIT, $price);
-        }
+        $orderSide = $positionSide == Exchange::POSITION_SIDE_SHORT ? Ok::$orderSideMap[Exchange::ORDER_SIDE_SELL] : Ok::$orderSideMap[Exchange::ORDER_SIDE_BUY];
 
-
-        return $this->createFutureTrailingOrder($volume, $price, $rate, $positionSide == self::POSITION_SIDE_LONG ? self::ORDER_CLOSE_LONG : self::ORDER_CLOSE_SHORT);
+        return $this->createFutureOrder($volume, $positionSide, $orderSide, Exchange::POSITION_TYPE_CROSSED, $orderType, $price);
     }
 
-    public function cancelOrder($env, $orderId, $origClientOrderId = 0, $type = self::ORDER_CREATE_TYPE_N)
+    public function close($positionSide, $volume, $env = Exchange::ENV_SWAP, $price = 0, $rate = 0)
+    {
+        $orderType = $price == 0 ? Ok::$orderTypeMap[Exchange::ORDER_TYPE_MARKET] : Ok::$orderTypeMap[Exchange::ORDER_TYPE_LIMIT];
+
+        if ($env == Exchange::ENV_SPOT) {
+            return $this->createOrder($volume, Ok::$orderSideMap[Exchange::ORDER_SIDE_SELL], $orderType, $price);
+        }
+        $orderSide = $positionSide == Exchange::POSITION_SIDE_SHORT ? Ok::$orderSideMap[Exchange::ORDER_SIDE_BUY] : Ok::$orderSideMap[Exchange::ORDER_SIDE_SELL];
+
+        return $this->createFutureOrder($volume, $positionSide, $orderSide, Exchange::POSITION_TYPE_CROSSED, $orderType, $price);
+
+    }
+
+    public function cancelOrder($orderId, $env = Exchange::ENV_SWAP, $origClientOrderId = 0)
     {
         $this->method = 'POST';
-        if ($type == self::ORDER_CREATE_TYPE_N) {
-            $this->path = '/api/v5/trade/cancel-order';
-            $this->body = array_merge(['instId' => $env == self::ENV_SPOT ? $this->symbol : $this->contractSymbol], array_filter([
+        $this->path = '/api/v5/trade/cancel-order';
+        $this->body = array_merge(['instId' => $env == Exchange::ENV_SPOT ? $this->symbol : $this->contractSymbol],
+            array_filter([
                 'ordId'   => $orderId,
                 'clOrdId' => $origClientOrderId
             ]));
-        } else {
-            if ($env == self::ENV_SPOT) {
-                $this->path = '/api/spot/v3/cancel_batch_algos';
-                $this->body = array_merge(['instrument_id' => $this->symbol], array_filter([
-                    'algo_ids'   => [$orderId],
-                    'order_type' => 2
-                ]));
-            } else {
-                $this->path = '/api/swap/v3/cancel_algos';
-                $this->body = array_merge(['instrument_id' => $this->contractSymbol], array_filter([
-                    'algo_ids'   => [$orderId],
-                    'order_type' => 2
-                ]));
-            }
-        }
 
         return $this->send();
     }
 
 
-    public function searchOrder($env, $orderId, $origClientOrderId = 0)
+    public function searchOrder($orderId, $env = Exchange::ENV_SWAP, $origClientOrderId = 0)
     {
         $this->method = 'GET';
         $this->path = '/api/v5/trade/order';
-        $this->body = array_merge(['instId' => $env == self::ENV_SPOT ? $this->symbol : $this->contractSymbol], array_filter([
-            'ordId'   => $orderId,
-            'clOrdId' => $origClientOrderId
-        ]));
+        $this->body = array_merge(['instId' => $env == Exchange::ENV_SPOT ? $this->symbol : $this->contractSymbol],
+            array_filter([
+                'ordId'   => $orderId,
+                'clOrdId' => $origClientOrderId
+            ]));
 
         return $this->send();
     }
 
 
-    public function transactionRecord($env, $limit = 500, $fromId = 0)
+    public function transactions($limit = 500, $env = Exchange::ENV_SWAP, $fromId = 0)
     {
         $this->method = 'GET';
         $this->path = '/api/v5/trade/fills';
-        $this->body = array_merge(['instId' => $env == self::ENV_SPOT ? $this->symbol : $this->contractSymbol], array_filter([
-            'instType' => $env,
-            'before'   => $fromId,
-            'limit'    => $limit
-        ]));
+        $this->body = array_merge(['instId' => $env == Exchange::ENV_SPOT ? $this->symbol : $this->contractSymbol],
+            array_filter([
+                'instType' => $env,
+                'before'   => $fromId,
+                'limit'    => $limit
+            ]));
 
         return $this->send();
     }
 
 
-    public function pendingOrderRecord($env, $limit = 500, $orderId = 0)
+    public function pendingOrders($limit = 500, $env = Exchange::ENV_SWAP, $fromId = 0)
     {
         $this->method = 'GET';
         $this->path = '/api/v5/trade/orders-pending';
-        $this->body = array_merge(['instId' => $env == self::ENV_SPOT ? $this->symbol : $this->contractSymbol], array_filter([
-            'before' => $orderId,
-            'limit'  => $limit
-        ]));
+        $this->body = array_merge(['instId' => $env == Exchange::ENV_SPOT ? $this->symbol : $this->contractSymbol],
+            array_filter([
+                'before' => $fromId,
+                'limit'  => $limit
+            ]));
 
         return $this->send();
     }
 
-    public function historyOrderRecord($env, $limit = 500, $orderId = 0)
+    public function historyOrders($limit = 500, $env = Exchange::ENV_SWAP, $fromId = 0)
     {
         $this->method = 'GET';
         $this->path = '/api/v5/trade/orders-history';
-        $this->body = array_merge(['instId' => $env == self::ENV_SPOT ? $this->symbol : $this->contractSymbol], array_filter([
-            'before' => $orderId,
-            'limit'  => $limit
-        ]));
+        $this->body = array_merge(['instId' => $env == Exchange::ENV_SPOT ? $this->symbol : $this->contractSymbol],
+            array_filter([
+                'before' => $fromId,
+                'limit'  => $limit
+            ]));
 
         return $this->send();
-    }
-
-    public function format($spotSymbol = [], $futureSymbol = false)
-    {
-        $this->symbol = $spotSymbol['instId'] ?? null;
-        $futureSymbol && $this->contractSymbol = $futureSymbol['instId'];
-        $this->baseCurrency = $spotSymbol['baseCcy'] ?? null;
-        $this->quoteCurrency = $spotSymbol['quoteCcy'] ?? null;
-        $this->pricePrecision = intval($futureSymbol ? log($futureSymbol['tickSz'], 0.1) : log($spotSymbol['tickSz'], 0.1));
-        $this->quantityPrecision = intval(log($spotSymbol['lotSz'], 0.1));
-        $this->contractSize = $futureSymbol ? $futureSymbol['ctVal'] : 0;
-        $this->status = $spotSymbol['state'] == 'live';
-        $this->extra = ['spot' => $spotSymbol, 'future' => $futureSymbol,];
-
-        return $this->raw();
-    }
-
-
-    public function formatPeriod($period)
-    {
-        if (Str::contains($period, 'min')) {
-            return Str::replace('min', 'm', $period);
-        }
-
-        if (Str::contains($period, 'hour')) {
-            return Str::replace('hour', 'H', $period);
-        }
-
-        if (Str::contains($period, 'day')) {
-            return Str::replace('day', 'D', $period);
-        }
-
-        if (Str::contains($period, 'week')) {
-            return Str::replace('week', 'W', $period);
-        }
-
-        if (Str::contains($period, 'mon')) {
-            return Str::replace('mon', 'M', $period);
-        }
-
-        if (Str::contains($period, 'year')) {
-            return Str::replace('year', 'Y', $period);
-        }
-
-
-        return $period;
     }
 
 }

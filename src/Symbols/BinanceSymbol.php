@@ -2,8 +2,10 @@
 
 namespace Aoeng\Laravel\Exchange\Symbols;
 
+use Aoeng\Laravel\Exchange\Adapters\Binance;
 use Aoeng\Laravel\Exchange\Contracts\SymbolInterface;
 use Aoeng\Laravel\Exchange\Exceptions\ExchangeException;
+use Aoeng\Laravel\Exchange\Facades\Exchange;
 use Aoeng\Laravel\Exchange\Requests\BinanceRequestTrait;
 use Aoeng\Laravel\Exchange\Traits\SymbolTrait;
 use GuzzleHttp\Exception\GuzzleException;
@@ -13,25 +15,6 @@ class BinanceSymbol implements SymbolInterface
 {
     use SymbolTrait, BinanceRequestTrait;
 
-
-    const SIDE_SELL = 'sell';
-    const SIDE_BUY = 'buy';
-
-    const POSITION_SIDE_SPOT = 'SPOT';
-    const POSITION_SIDE_BOTH = 'BOTH';
-    const POSITION_SIDE_LONG = 'LONG';
-    const POSITION_SIDE_SHORT = 'SHORT';
-
-    const ORDER_TYPE_LIMIT = 'LIMIT';
-    const ORDER_TYPE_MARKET = 'MARKET';
-    const ORDER_TYPE_STOP = 'STOP';
-    const ORDER_TYPE_TAKE_PROFIT = 'TAKE_PROFIT';
-    const ORDER_TYPE_STOP_MARKET = 'STOP_MARKET';
-    const ORDER_TYPE_TAKE_PROFIT_MARKET = 'TAKE_PROFIT_MARKET';
-    const ORDER_TYPE_TRAILING_STOP_MARKET = 'TRAILING_STOP_MARKET';
-
-    const MARGIN_TYPE_ISOLATED = 'ISOLATED';
-    const MARGIN_TYPE_CROSSED = 'CROSSED';
 
     public function symbol($symbol = [])
     {
@@ -58,12 +41,12 @@ class BinanceSymbol implements SymbolInterface
      */
     public function klins($env, $period, $limit = 500)
     {
-        $this->url = $env == self::ENV_SPOT ? "$this->spotHost/api/v3/klines" : "$this->futureHost/fapi/v1/klines";
+        $this->url = $env == Exchange::ENV_SPOT ? "$this->spotHost/api/v3/klines" : "$this->futureHost/fapi/v1/klines";
         $this->checked = false;
 
         $this->body = [
             'symbol'   => $this->symbol,
-            'interval' => $this->formatPeriod($period),
+            'interval' => Binance::formatPeriod($period),
             'limit'    => $limit
         ];
 
@@ -95,11 +78,12 @@ class BinanceSymbol implements SymbolInterface
      * @return array|mixed
      * @throws GuzzleException
      */
-    public function changeMarginModel(string $marginType = self::MARGIN_TYPE_CROSSED)
+    public function changeMarginModel(string $marginType = Exchange::POSITION_TYPE_CROSSED)
     {
+
         $this->method = 'POST';
         $this->url = $this->futureHost . '/fapi/v1/marginType';
-        $this->body = ['symbol' => $this->contractSymbol, 'marginType' => $marginType];
+        $this->body = ['symbol' => $this->contractSymbol, 'marginType' => Binance::$positionTypeMap[$marginType]];
 
         return $this->send();
     }
@@ -112,15 +96,15 @@ class BinanceSymbol implements SymbolInterface
      * @return array|mixed
      * @throws GuzzleException
      */
-    public function changeMargin($amount, int $type = 1, string $positionSide = self::POSITION_SIDE_BOTH)
+    public function changeMargin($amount, int $type = Exchange::MARGIN_CHANGE_ADD, string $positionSide = Exchange::POSITION_SIDE_BOTH)
     {
         $this->method = 'POST';
         $this->url = $this->futureHost . '/fapi/v1/positionMargin';
         $this->body = [
             'symbol'       => $this->contractSymbol,
             'amount'       => $amount,
-            'type'         => $type,
-            'positionSide' => $positionSide
+            'type'         => Binance::$marginChangeMap[$type],
+            'positionSide' => Binance::$positionSideMap[$positionSide]
         ];
 
         return $this->send();
@@ -141,162 +125,152 @@ class BinanceSymbol implements SymbolInterface
     }
 
 
-    public function createFutureOrder($quantity, $positionSide = self::POSITION_SIDE_BOTH, $side = self::SIDE_BUY, $type = self::ORDER_TYPE_MARKET, $price = null, $newClientOrderId = null)
+    public function createFutureOrder($quantity, $positionSide = Exchange::POSITION_SIDE_BOTH, $side = Exchange::ORDER_SIDE_BUY, $type = Exchange::ORDER_TYPE_MARKET, $price = null, $newClientOrderId = null)
     {
+        $positionSide = Binance::$positionSideMap[$positionSide];
+        $side = Binance::$orderSideMap[$side];
+        $type = Binance::$orderTypeMap[$type];
+
         $this->method = 'POST';
         $this->url = $this->futureHost . '/fapi/v1/order';
         $this->body = array_merge(['symbol' => $this->contractSymbol], array_filter(compact('side', 'positionSide', 'type', 'quantity', 'price', 'newClientOrderId')));
 
-        return $this->send();
+        $result = $this->send();
+
+        if ($result['code'] != 0) {
+            return $this->error($result['message'], $result['code']);
+        }
+
+        return $this->response(Binance::formatOrder($result['data']));
     }
 
-    public function createOrder($quantity, $side = self::SIDE_BUY, $type = self::ORDER_TYPE_MARKET, $price = null, $quoteOrderQty = null, $newClientOrderId = null)
+    public function createOrder($quantity, $side = Exchange::ORDER_SIDE_BUY, $type = Exchange::ORDER_TYPE_MARKET, $price = null, $quoteOrderQty = null, $newClientOrderId = null)
     {
+
+        $side = Binance::$orderSideMap[$side];
+        $type = Binance::$orderTypeMap[$type];
+
         $this->method = 'POST';
         $this->url = $this->spotHost . '/api/v3/order';
         $this->body = array_merge(['symbol' => $this->contractSymbol], array_filter(compact('side', 'type', 'quantity', 'price', 'quoteOrderQty', 'newClientOrderId')));
 
-        return $this->send();
+        $result = $this->send();
+
+        if ($result['code'] != 0) {
+            return $this->error($result['message'], $result['code']);
+        }
+
+        return $this->response(Binance::formatOrder($result['data']));
     }
 
-    public function createFutureTrailingOrder($quantity, $activationPrice = null, $callbackRate = 0.1, $positionSide = self::POSITION_SIDE_BOTH, $side = self::SIDE_BUY, $newClientOrderId = null)
+    public function createFutureTrailingOrder($quantity, $activationPrice = null, $callbackRate = 0.1, $positionSide = Exchange::POSITION_SIDE_BOTH, $side = Exchange::ORDER_SIDE_BUY, $newClientOrderId = null)
     {
+        $positionSide = Binance::$positionSideMap[$positionSide];
+        $side = Binance::$orderSideMap[$side];
+
         $this->method = 'POST';
         $this->url = $this->futureHost . '/fapi/v1/order';
         $this->body = array_merge([
             'symbol' => $this->contractSymbol,
-            'type'   => self::ORDER_TYPE_TRAILING_STOP_MARKET
+            'type'   => Binance::$orderTypeMap[Exchange::ORDER_TYPE_TRAILING]
         ], array_filter(compact('side', 'positionSide', 'activationPrice', 'quantity', 'callbackRate', 'newClientOrderId')));
 
-        return $this->send();
+        $result = $this->send();
+
+        if ($result['code'] != 0) {
+            return $this->error($result['message'], $result['code']);
+        }
+
+        return $this->response(Binance::formatOrder($result['data']));
     }
 
 
-    public function open($positionSide, $volume, $price = 0, $rate = 0)
+    public function open($positionSide, $volume, $env = Exchange::ENV_SWAP, $price = 0, $rate = 0)
     {
-        if ($positionSide == self::POSITION_SIDE_SPOT) {
-            if ($rate != 0) {
-                return $this->error('币安现货不支持追踪委托订单');
-            }
-            return $this->createOrder($volume, self::SIDE_BUY, $price == 0 ? self::ORDER_TYPE_MARKET : self::ORDER_TYPE_LIMIT, $price);
+        $orderType = $price == 0 ? Binance::$orderTypeMap[Exchange::ORDER_TYPE_MARKET] : Binance::$orderTypeMap[Exchange::ORDER_TYPE_LIMIT];
+
+        if ($env == Exchange::ENV_SPOT) {
+            return $this->createOrder($volume, Binance::$orderSideMap[Exchange::ORDER_SIDE_BUY], $orderType, $price);
         }
+
+        $orderSide = $positionSide == Exchange::POSITION_SIDE_SHORT ? Binance::$orderSideMap[Exchange::ORDER_SIDE_SELL] : Binance::$orderSideMap[Exchange::ORDER_SIDE_BUY];
 
         if ($rate == 0) {
-            return $this->createFutureOrder($volume, $positionSide, $positionSide == self::POSITION_SIDE_SHORT ? self::SIDE_SELL : self::SIDE_BUY, $price == 0 ? self::ORDER_TYPE_MARKET : self::ORDER_TYPE_LIMIT, $price);
+            return $this->createFutureOrder($volume, $positionSide, $orderSide, $orderType, $price);
         }
 
-        return $this->createFutureTrailingOrder($volume, $price, $rate, $positionSide, $positionSide == self::POSITION_SIDE_SHORT ? self::SIDE_SELL : self::SIDE_BUY);
+        return $this->createFutureTrailingOrder($volume, $price, $rate, $positionSide, $orderSide);
     }
 
-    public function close($positionSide, $volume, $price = 0, $rate = 0)
+    public function close($positionSide, $volume, $env = Exchange::ENV_SWAP, $price = 0, $rate = 0)
     {
+        $orderType = $price == 0 ? Binance::$orderTypeMap[Exchange::ORDER_TYPE_MARKET] : Binance::$orderTypeMap[Exchange::ORDER_TYPE_LIMIT];
 
-        if ($positionSide == self::POSITION_SIDE_SPOT) {
-            if ($rate != 0) {
-                return $this->error('币安现货不支持追踪委托订单');
-            }
-            return $this->createOrder($volume, self::SIDE_SELL, $price == 0 ? self::ORDER_TYPE_MARKET : self::ORDER_TYPE_LIMIT, $price);
+        if ($env == Exchange::ENV_SPOT) {
+            return $this->createOrder($volume, Binance::$orderSideMap[Exchange::ORDER_SIDE_BUY], $orderType, $price);
         }
+
+        $orderSide = $positionSide == Exchange::POSITION_SIDE_SHORT ? Binance::$orderSideMap[Exchange::ORDER_SIDE_BUY] : Binance::$orderSideMap[Exchange::ORDER_SIDE_SELL];
 
         if ($rate == 0) {
-            return $this->createFutureOrder($volume, $positionSide, $positionSide == self::POSITION_SIDE_SHORT ? self::SIDE_BUY : self::SIDE_SELL, $price == 0 ? self::ORDER_TYPE_MARKET : self::ORDER_TYPE_LIMIT, $price);
+            return $this->createFutureOrder($volume, $positionSide, $orderSide, $orderType, $price);
         }
 
-        return $this->createFutureTrailingOrder($volume, $price, $rate, $positionSide, $positionSide == self::POSITION_SIDE_SHORT ? self::SIDE_BUY : self::SIDE_SELL);
+        return $this->createFutureTrailingOrder($volume, $price, $rate, $positionSide, $orderSide);
     }
 
-    public function cancelOrder($env, $orderId, $origClientOrderId = 0)
+    public function cancelOrder($orderId, $env = Exchange::ENV_SWAP, $origClientOrderId = 0)
     {
         $this->method = 'DELETE';
-        $this->url = $env == self::ENV_SPOT ? "$this->spotHost/api/v3/order" : "$this->futureHost/fapi/v1/order";
+        $this->url = $env == Exchange::ENV_SPOT ? "$this->spotHost/api/v3/order" : "$this->futureHost/fapi/v1/order";
         $this->body = array_merge(['symbol' => $this->symbol], array_filter(compact('orderId', 'origClientOrderId')));
 
         return $this->send();
     }
 
 
-    public function cancelAllOrder($env = self::ENV_SPOT)
+    public function cancelAllOrder($env = Exchange::ENV_SWAP)
     {
         $this->method = 'DELETE';
-        $this->url = $env == self::ENV_SPOT ? "$this->spotHost/api/v3/openOrders" : "$this->futureHost/fapi/v1/allOpenOrders";
+        $this->url = $env == Exchange::ENV_SPOT ? "$this->spotHost/api/v3/openOrders" : "$this->futureHost/fapi/v1/allOpenOrders";
         $this->body = ['symbol' => $this->symbol];
 
         return $this->send();
     }
 
 
-    public function searchOrder($env, $orderId, $origClientOrderId = 0)
+    public function searchOrder($orderId, $env = Exchange::ENV_SWAP, $origClientOrderId = 0)
     {
         $this->method = 'GET';
-        $this->url = $env == self::ENV_SPOT ? "$this->spotHost/api/v3/order" : "$this->futureHost/fapi/v1/order";
+        $this->url = $env == Exchange::ENV_SPOT ? "$this->spotHost/api/v3/order" : "$this->futureHost/fapi/v1/order";
         $this->body = array_merge(['symbol' => $this->contractSymbol], array_filter(compact('orderId', 'origClientOrderId')));
 
         return $this->send();
     }
 
 
-    public function transactionRecord($env, $limit = 500, $fromId = 0, $startTime = null, $endTime = null)
+    public function transactions($limit = 500, $env = Exchange::ENV_SWAP, $fromId = 0, $startTime = null, $endTime = null)
     {
         $this->method = 'GET';
-        $this->url = $env == self::ENV_SPOT ? "$this->spotHost/api/v3/myTrades" : "$this->futureHost/fapi/v1/userTrades";
+        $this->url = $env == Exchange::ENV_SPOT ? "$this->spotHost/api/v3/myTrades" : "$this->futureHost/fapi/v1/userTrades";
         $this->body = array_merge(['symbol' => $this->contractSymbol], array_filter(compact('fromId', 'startTime', 'endTime', 'limit')));
 
         return $this->send();
     }
 
 
-    public function orderRecord($env, $limit = 500, $orderId = 0, $startTime = null, $endTime = null)
+    public function orders($limit = 500, $env = Exchange::ENV_SWAP, $fromId = 0, $startTime = null, $endTime = null)
     {
         $this->method = 'GET';
-        $this->url = $env == self::ENV_SPOT ? "$this->spotHost/api/v3/allOrders" : "$this->futureHost/fapi/v1/allOrders";
-        $this->body = array_merge(['symbol' => $this->contractSymbol], array_filter(compact('orderId', 'startTime', 'endTime', 'limit')));
+        $this->url = $env == Exchange::ENV_SPOT ? "$this->spotHost/api/v3/allOrders" : "$this->futureHost/fapi/v1/allOrders";
+        $this->body = array_merge(['symbol' => $this->contractSymbol], array_filter([
+            'orderId'   => $fromId,
+            'startTime' => $startTime,
+            'endTime'   => $endTime,
+            'limit'     => $limit
+        ]));
 
         return $this->send();
-    }
-
-    public function format($spotSymbol = [], $futureSymbol = false)
-    {
-        $this->symbol = $spotSymbol['symbol'] ?? null;
-        $futureSymbol && $this->contractSymbol = $futureSymbol['symbol'];
-        $this->baseCurrency = $spotSymbol['baseAsset'] ?? null;
-        $this->quoteCurrency = $spotSymbol['quoteAsset'] ?? null;
-        $this->pricePrecision = $futureSymbol['pricePrecision'] ?? $spotSymbol['quotePrecision'];
-        $this->quantityPrecision = $futureSymbol['quantityPrecision'] ?? $spotSymbol['baseAssetPrecision'];
-        $this->status = $spotSymbol['status'] == 'TRADING';
-        $this->extra = ['spot' => $spotSymbol, 'future' => $futureSymbol,];
-
-        return $this->raw();
-    }
-
-
-    public function formatPeriod($period)
-    {
-        if (Str::contains($period, 'min')) {
-            return Str::replace('min', 'm', $period);
-        }
-
-        if (Str::contains($period, 'hour')) {
-            return Str::replace('hour', 'h', $period);
-        }
-
-        if (Str::contains($period, 'day')) {
-            return Str::replace('day', 'd', $period);
-        }
-
-        if (Str::contains($period, 'week')) {
-            return Str::replace('week', 'w', $period);
-        }
-
-        if (Str::contains($period, 'mon')) {
-            return Str::replace('mon', 'm', $period);
-        }
-
-        if (Str::contains($period, 'year')) {
-            return Str::replace('year', 'y', $period);
-        }
-
-
-        return $period;
     }
 
 }

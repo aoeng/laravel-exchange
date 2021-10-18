@@ -21,6 +21,8 @@ trait OkRequestTrait
 
     protected $passphrase;
 
+    protected $simulated = false;
+
 
     public function keySecret($key, $secret, $passphrase = null)
     {
@@ -54,6 +56,10 @@ trait OkRequestTrait
             'OK-ACCESS-TIMESTAMP'  => $timestamp,
             'OK-ACCESS-PASSPHRASE' => $this->passphrase,
         ];
+
+        if ($this->simulated) {
+            $this->options['headers']['x-simulated-trading'] = 1;
+        }
 
         $this->url = $this->host . $this->path;
 

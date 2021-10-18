@@ -24,11 +24,11 @@ class ExchangeServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton('binance-ex', function ($app) {
-            return new BinanceExchange();
+            return new BinanceExchange($app['config']['exchange']['exchanges']['binance']);
         });
 
         $this->app->singleton('ok-ex', function ($app) {
-            return new OkExchange();
+            return new OkExchange($app['config']['exchange']['exchanges']['ok']);
         });
 
     }

@@ -4,7 +4,6 @@ namespace Aoeng\Laravel\Exchange\Traits;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
-use Illuminate\Support\Facades\Http;
 
 trait HttpRequestTrait
 {
@@ -17,6 +16,8 @@ trait HttpRequestTrait
 
     private $options = [];
 
+    private $proxy = [];
+
 
     /**
      * @throws GuzzleException
@@ -25,9 +26,9 @@ trait HttpRequestTrait
     {
         $client = new Client();
 
-        if (!empty(config('exchange.proxy', null))) {
+        if (!empty($this->proxy)) {
             $this->options = array_merge([
-                'proxy'  => config('exchange.proxy', null),
+                'proxy'  => $this->proxy,
                 'verify' => false
             ], $this->options);
         }
