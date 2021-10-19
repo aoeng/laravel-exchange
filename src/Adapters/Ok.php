@@ -134,4 +134,27 @@ class Ok
             'detail'        => $order,
         ];
     }
+
+    public static function formatBalance($balances)
+    {
+        $bs = [];
+        foreach ($balances[0]['details'] as $detail) {
+            $bs[] = [
+                'asset'            => $detail['ccy'],
+                'type'             => Exchange::ENV_SPOT,
+                'balance'          => $detail['cashBal'],
+                'availableBalance' => $detail['availEq'],
+            ];
+            if ($detail['ccy'] == 'USDT') {
+                $bs[] = [
+                    'asset'            => $detail['ccy'],
+                    'type'             => Exchange::ENV_SWAP,
+                    'balance'          => $detail['cashBal'],
+                    'availableBalance' => $detail['availEq'],
+                ];
+            }
+        }
+
+        return $bs;
+    }
 }

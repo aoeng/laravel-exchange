@@ -36,6 +36,13 @@ class OkExchange implements ExchangeInterface
     }
 
 
+    public function symbol($symbol)
+    {
+        $this->symbol = (new OkSymbol())->symbol($symbol)->keySecret($this->key, $this->secret, $this->passphrase);
+
+        return $this->symbol;
+    }
+
     /**
      * @inheritDoc
      * @throws GuzzleException
@@ -67,13 +74,6 @@ class OkExchange implements ExchangeInterface
         }
 
         return $this->response($symbols ?? []);
-    }
-
-    public function symbol($symbol)
-    {
-        $this->symbol = (new OkSymbol())->symbol($symbol)->keySecret($this->key, $this->secret, $this->passphrase);
-
-        return $this->symbol;
     }
 
 
@@ -125,14 +125,18 @@ class OkExchange implements ExchangeInterface
      * @return array|mixed
      * @throws GuzzleException
      */
-    public function balance($ccy = null)
+    public function balance()
     {
         $this->method = 'GET';
         $this->path = '/api/v5/account/balance';
 
-        $this->body = array_filter(compact('ccy'));
+        $result = $this->send();
 
-        return $this->send();
+        if ($result['code'] != 0) {
+            return $this->error($result['message'], $result['code']);
+        }
+
+        return $this->response(Ok::formatBalance($result['data']));
     }
 
     /**

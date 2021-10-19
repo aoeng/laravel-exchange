@@ -205,7 +205,7 @@ class BinanceExchange implements ExchangeInterface
             return $this->error($spotResult['message'], $spotResult['code']);
         }
 
-        return $this->response(['spot' => $spotResult['data'], 'future' => $futureResult['data']]);
+        return $this->response(Binance::formatBalance($futureResult['data'], $spotResult['data']));
     }
 
     /**

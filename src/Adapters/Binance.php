@@ -123,4 +123,31 @@ class Binance
             'detail'        => $order,
         ];
     }
+
+    public static function formatBalance($futureBalances, $spotBalances)
+    {
+        $bs = [];
+
+        foreach ($futureBalances as $detail) {
+            if ($detail['asset'] == 'USDT') {
+                $bs[] = [
+                    'asset'            => $detail['asset'],
+                    'type'             => Exchange::ENV_SWAP,
+                    'balance'          => $detail['balance'],
+                    'availableBalance' => $detail['availableBalance'],
+                ];
+            }
+        }
+
+        foreach ($spotBalances['balances'] as $balance) {
+            $bs[] = [
+                'asset'            => $balance['asset'],
+                'type'             => Exchange::ENV_SPOT,
+                'balance'          => $balance['free'] + $balance['locked'],
+                'availableBalance' => $balance['free'],
+            ];
+        }
+
+        return $bs;
+    }
 }
