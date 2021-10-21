@@ -100,7 +100,13 @@ class OkExchange implements ExchangeInterface
 
         $this->path = '/api/v5/account/config';
 
-        return $this->send();
+        $result = $this->send();
+
+        if ($result['code'] != 0) {
+            return $this->error($result['message'], $result['code']);
+        }
+
+        return $this->response($result['data'][0]);
     }
 
 
@@ -122,7 +128,7 @@ class OkExchange implements ExchangeInterface
 
     /**
      * 账户余额
-     * @return array|mixed
+     * @return array
      * @throws GuzzleException
      */
     public function balance()
