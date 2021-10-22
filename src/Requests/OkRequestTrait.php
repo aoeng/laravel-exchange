@@ -40,6 +40,11 @@ trait OkRequestTrait
         return $this;
     }
 
+    public function simulated($simulated = true)
+    {
+        $this->simulated = $simulated;
+    }
+
     /**
      * @throws GuzzleException
      */
