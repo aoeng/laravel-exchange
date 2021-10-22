@@ -13,8 +13,6 @@ class OkExchange implements ExchangeInterface
 {
     use OkRequestTrait;
 
-    protected $config;
-
     protected $symbol = null;
 
     public function __construct($config = null)

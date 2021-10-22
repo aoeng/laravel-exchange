@@ -13,9 +13,6 @@ class BinanceExchange implements ExchangeInterface
 {
     use BinanceRequestTrait;
 
-
-    protected $config;
-
     protected $symbol = null;
 
 

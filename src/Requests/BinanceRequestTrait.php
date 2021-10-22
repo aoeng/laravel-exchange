@@ -15,6 +15,7 @@ trait BinanceRequestTrait
 
     protected $futureHost = 'https://fapi.binance.com';
 
+    protected $config = [];
 
     protected $key;
 
@@ -27,6 +28,9 @@ trait BinanceRequestTrait
 
         $this->key = $key;
         $this->secret = $secret;
+
+        $this->config['key'] = $key;
+        $this->config['secret'] = $secret;
 
         return $this;
     }

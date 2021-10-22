@@ -15,6 +15,8 @@ trait OkRequestTrait
 
     protected $path = '';
 
+    protected $config = [];
+
     protected $key;
 
     protected $secret;
@@ -30,6 +32,10 @@ trait OkRequestTrait
         $this->key = $key;
         $this->secret = $secret;
         $this->passphrase = $passphrase;
+
+        $this->config['key'] = $key;
+        $this->config['secret'] = $secret;
+        $this->config['passphrase'] = $passphrase;
 
         return $this;
     }
@@ -70,7 +76,7 @@ trait OkRequestTrait
         }
 
         try {
-            
+            dd($this->options);
             $data = json_decode($this->request(), true);
 
             if ($data['code'] != 0) {

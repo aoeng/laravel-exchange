@@ -17,6 +17,8 @@ class BinanceSymbol implements SymbolInterface
 
     public function __construct($config = [])
     {
+        $this->config = $config;
+
         $this->key = $config['key'] ?? null;
         $this->secret = $config['secret'] ?? null;
         $this->proxy = $config['proxy'] ?? null;
