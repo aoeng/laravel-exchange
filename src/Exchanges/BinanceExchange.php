@@ -37,7 +37,7 @@ class BinanceExchange implements ExchangeInterface
 
     public function symbol($symbol)
     {
-        $this->symbol = (new BinanceSymbol())->symbol($symbol)->keySecret($this->key, $this->secret);
+        $this->symbol = (new BinanceSymbol($this->config))->symbol($symbol);
 
         return $this->symbol;
     }

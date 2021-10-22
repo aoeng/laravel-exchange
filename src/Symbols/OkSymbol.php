@@ -19,6 +19,15 @@ class OkSymbol implements SymbolInterface
     const ORDER_CREATE_TYPE_N = 'n';
     const ORDER_CREATE_TYPE_S = 's';
 
+    public function __construct($config = [])
+    {
+        $this->key = $config['key'] ?? null;
+        $this->secret = $config['secret'] ?? null;
+        $this->passphrase = $config['passphrase'] ?? null;
+        $this->simulated = $config['simulated'] ?? false;
+        $this->proxy = $config['proxy'] ?? null;
+    }
+
 
     public function symbol($symbol = [])
     {

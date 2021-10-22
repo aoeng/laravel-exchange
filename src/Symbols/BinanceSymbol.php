@@ -15,10 +15,15 @@ class BinanceSymbol implements SymbolInterface
 {
     use SymbolTrait, BinanceRequestTrait;
 
+    public function __construct($config = [])
+    {
+        $this->key = $config['key'] ?? null;
+        $this->secret = $config['secret'] ?? null;
+        $this->proxy = $config['proxy'] ?? null;
+    }
 
     public function symbol($symbol = [])
     {
-
         if (!isset($symbol['symbol'])) {
             throw new ExchangeException('交易对[symbol]不存在');
         }

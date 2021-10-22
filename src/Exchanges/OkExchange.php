@@ -38,7 +38,7 @@ class OkExchange implements ExchangeInterface
 
     public function symbol($symbol)
     {
-        $this->symbol = (new OkSymbol())->symbol($symbol)->keySecret($this->key, $this->secret, $this->passphrase);
+        $this->symbol = (new OkSymbol($this->config))->symbol($symbol);
 
         return $this->symbol;
     }

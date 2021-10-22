@@ -70,7 +70,7 @@ trait OkRequestTrait
         }
 
         try {
-
+            
             $data = json_decode($this->request(), true);
 
             if ($data['code'] != 0) {
