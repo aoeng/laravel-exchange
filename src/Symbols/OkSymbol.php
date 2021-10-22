@@ -70,9 +70,9 @@ class OkSymbol implements SymbolInterface
             'posSide' => Ok::$positionSideMap[$positionSide]
         ];
 
-        $result = $this->send(false);
+        $result = $this->send();
 
-        return $this->response($result[0]);
+        return $this->response($result['data'][0]);
     }
 
     public function maxExchange($positionType = Exchange::POSITION_TYPE_CROSSED)
