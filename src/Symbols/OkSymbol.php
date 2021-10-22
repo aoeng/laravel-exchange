@@ -72,6 +72,10 @@ class OkSymbol implements SymbolInterface
 
         $result = $this->send();
 
+        if ($result['code'] != 0) {
+            return $this->error($result['message'], $result['code']);
+        }
+
         return $this->response($result['data'][0]);
     }
 
