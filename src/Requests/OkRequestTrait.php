@@ -76,7 +76,7 @@ trait OkRequestTrait
         }
 
         try {
-            dd($this->options);
+
             $data = json_decode($this->request(), true);
 
             if ($data['code'] != 0) {
