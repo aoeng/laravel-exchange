@@ -43,6 +43,8 @@ trait OkRequestTrait
     public function simulated($simulated = true)
     {
         $this->simulated = $simulated;
+
+        return $this;
     }
 
     /**
