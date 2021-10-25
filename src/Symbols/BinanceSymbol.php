@@ -194,13 +194,13 @@ class BinanceSymbol implements SymbolInterface
 
     public function open($positionSide, $volume, $env = Exchange::ENV_SWAP, $price = 0, $rate = 0)
     {
-        $orderType = $price == 0 ? Binance::$orderTypeMap[Exchange::ORDER_TYPE_MARKET] : Binance::$orderTypeMap[Exchange::ORDER_TYPE_LIMIT];
+        $orderType = $price == 0 ? Exchange::ORDER_TYPE_MARKET : Exchange::ORDER_TYPE_LIMIT;
 
         if ($env == Exchange::ENV_SPOT) {
-            return $this->createOrder($volume, Binance::$orderSideMap[Exchange::ORDER_SIDE_BUY], $orderType, $price);
+            return $this->createOrder($volume, Exchange::ORDER_SIDE_BUY, $orderType, $price);
         }
 
-        $orderSide = $positionSide == Exchange::POSITION_SIDE_SHORT ? Binance::$orderSideMap[Exchange::ORDER_SIDE_SELL] : Binance::$orderSideMap[Exchange::ORDER_SIDE_BUY];
+        $orderSide = $positionSide == Exchange::POSITION_SIDE_SHORT ? Exchange::ORDER_SIDE_SELL : Exchange::ORDER_SIDE_BUY;
 
         if ($rate == 0) {
             return $this->createFutureOrder($volume, $positionSide, $orderSide, $orderType, $price);
@@ -211,13 +211,13 @@ class BinanceSymbol implements SymbolInterface
 
     public function close($positionSide, $volume, $env = Exchange::ENV_SWAP, $price = 0, $rate = 0)
     {
-        $orderType = $price == 0 ? Binance::$orderTypeMap[Exchange::ORDER_TYPE_MARKET] : Binance::$orderTypeMap[Exchange::ORDER_TYPE_LIMIT];
+        $orderType = $price == 0 ? Exchange::ORDER_TYPE_MARKET : Exchange::ORDER_TYPE_LIMIT;
 
         if ($env == Exchange::ENV_SPOT) {
-            return $this->createOrder($volume, Binance::$orderSideMap[Exchange::ORDER_SIDE_BUY], $orderType, $price);
+            return $this->createOrder($volume, Exchange::ORDER_SIDE_BUY, $orderType, $price);
         }
 
-        $orderSide = $positionSide == Exchange::POSITION_SIDE_SHORT ? Binance::$orderSideMap[Exchange::ORDER_SIDE_BUY] : Binance::$orderSideMap[Exchange::ORDER_SIDE_SELL];
+        $orderSide = $positionSide == Exchange::POSITION_SIDE_SHORT ? Exchange::ORDER_SIDE_BUY : Exchange::ORDER_SIDE_SELL;
 
         if ($rate == 0) {
             return $this->createFutureOrder($volume, $positionSide, $orderSide, $orderType, $price);

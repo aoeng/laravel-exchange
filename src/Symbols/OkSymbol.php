@@ -174,25 +174,25 @@ class OkSymbol implements SymbolInterface
 
     public function open($positionSide, $volume, $env = Exchange::ENV_SWAP, $price = 0, $rate = 0)
     {
-        $orderType = $price == 0 ? Ok::$orderTypeMap[Exchange::ORDER_TYPE_MARKET] : Ok::$orderTypeMap[Exchange::ORDER_TYPE_LIMIT];
+        $orderType = $price == 0 ? Exchange::ORDER_TYPE_MARKET : Exchange::ORDER_TYPE_LIMIT;
 
         if ($env == Exchange::ENV_SPOT) {
-            return $this->createOrder($volume, Ok::$orderSideMap[Exchange::ORDER_SIDE_BUY], $orderType, $price);
+            return $this->createOrder($volume, Exchange::ORDER_SIDE_BUY, $orderType, $price);
         }
 
-        $orderSide = $positionSide == Exchange::POSITION_SIDE_SHORT ? Ok::$orderSideMap[Exchange::ORDER_SIDE_SELL] : Ok::$orderSideMap[Exchange::ORDER_SIDE_BUY];
+        $orderSide = $positionSide == Exchange::POSITION_SIDE_SHORT ? Exchange::ORDER_SIDE_SELL : Exchange::ORDER_SIDE_BUY;
 
         return $this->createFutureOrder($volume, $positionSide, $orderSide, Exchange::POSITION_TYPE_CROSSED, $orderType, $price);
     }
 
     public function close($positionSide, $volume, $env = Exchange::ENV_SWAP, $price = 0, $rate = 0)
     {
-        $orderType = $price == 0 ? Ok::$orderTypeMap[Exchange::ORDER_TYPE_MARKET] : Ok::$orderTypeMap[Exchange::ORDER_TYPE_LIMIT];
+        $orderType = $price == 0 ? Exchange::ORDER_TYPE_MARKET : Exchange::ORDER_TYPE_LIMIT;
 
         if ($env == Exchange::ENV_SPOT) {
-            return $this->createOrder($volume, Ok::$orderSideMap[Exchange::ORDER_SIDE_SELL], $orderType, $price);
+            return $this->createOrder($volume, Exchange::ORDER_SIDE_SELL, $orderType, $price);
         }
-        $orderSide = $positionSide == Exchange::POSITION_SIDE_SHORT ? Ok::$orderSideMap[Exchange::ORDER_SIDE_BUY] : Ok::$orderSideMap[Exchange::ORDER_SIDE_SELL];
+        $orderSide = $positionSide == Exchange::POSITION_SIDE_SHORT ? Exchange::ORDER_SIDE_BUY : Exchange::ORDER_SIDE_SELL;
 
         return $this->createFutureOrder($volume, $positionSide, $orderSide, Exchange::POSITION_TYPE_CROSSED, $orderType, $price);
 
