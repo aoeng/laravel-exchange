@@ -145,19 +145,19 @@ class OkSymbol implements SymbolInterface
             return $this->error($result['message'], $result['code']);
         }
 
-        return $this->response(Ok::formatOrder($result['data']));
+        return $this->response(Ok::formatOrder($result['data'][0]));
     }
 
-    public function createFutureOrder($quantity, $positionSide = Exchange::POSITION_SIDE_BOTH, $orderSide = Exchange::ORDER_SIDE_BUY, $positionMode = Exchange::POSITION_TYPE_CASH, $orderType = Exchange::ORDER_TYPE_MARKET, $price = null, $newClientOrderId = null)
+    public function createFutureOrder($quantity, $positionSide = Exchange::POSITION_SIDE_BOTH, $orderSide = Exchange::ORDER_SIDE_BUY, $positionType = Exchange::POSITION_TYPE_CASH, $orderType = Exchange::ORDER_TYPE_MARKET, $price = null, $newClientOrderId = null)
     {
         $this->method = 'POST';
         $this->path = '/api/v5/trade/order';
         $this->body = array_merge(['instId' => $this->contractSymbol], array_filter([
-            'tdMode'  => Ok::$positionModeMap[$positionMode],
+            'tdMode'  => Ok::$positionTypeMap[$positionType],
             'clOrdId' => $newClientOrderId,
             'side'    => Ok::$orderSideMap[$orderSide],
             'posSide' => Ok::$positionSideMap[$positionSide],
-            'ordType' => Ok::$orderSideMap[$orderType],
+            'ordType' => Ok::$orderTypeMap[$orderType],
             'sz'      => $quantity,
             'px'      => $price,
         ]));
@@ -168,7 +168,7 @@ class OkSymbol implements SymbolInterface
             return $this->error($result['message'], $result['code']);
         }
 
-        return $this->response(Ok::formatOrder($result['data']));
+        return $this->response(Ok::formatOrder($result['data'][0]));
     }
 
 

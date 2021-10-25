@@ -87,7 +87,7 @@ trait OkRequestTrait
             $data = json_decode($this->request(), true);
 
             if ($data['code'] != 0) {
-                return $this->error($data['msg'], $data['code']);
+                return $this->error($data['data'][0]['sMsg'] ?? $data['msg'],$data['data'][0]['sCode'] ?? $data['code']);
             }
             return $format ? $this->response($data['data']) : $data['data'];
         } catch (RequestException $e) {
