@@ -29,7 +29,7 @@ trait SymbolTrait
     {
         return [
             'symbol'            => $this->symbol,
-            'contractSymbol'      => $this->contractSymbol,
+            'contractSymbol'    => $this->contractSymbol,
             'baseCurrency'      => $this->baseCurrency,
             'quoteCurrency'     => $this->quoteCurrency,
             'pricePrecision'    => $this->pricePrecision,

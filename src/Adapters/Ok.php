@@ -38,7 +38,7 @@ class Ok
     public static $orderTypeMap = [
         Exchange::ORDER_TYPE_MARKET   => 'market',
         Exchange::ORDER_TYPE_LIMIT    => 'limit',
-        Exchange::ORDER_TYPE_TRAILING => 'trailing',
+        Exchange::ORDER_TYPE_TRAILING => 'move_order_stop',
     ];
 
     public static $orderQuantityTypeMap = [

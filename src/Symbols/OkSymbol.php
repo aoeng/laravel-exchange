@@ -171,6 +171,29 @@ class OkSymbol implements SymbolInterface
         return $this->response(Ok::formatOrder($result['data'][0]));
     }
 
+    public function createFutureTrailingOrder($quantity, $callbackRate = 0.1, $activationPrice = null, $positionSide = Exchange::POSITION_SIDE_BOTH, $orderSide = Exchange::ORDER_SIDE_BUY, $positionType = Exchange::POSITION_TYPE_CASH)
+    {
+        $this->method = 'POST';
+        $this->path = '/api/v5/trade/order-algo';
+        $this->body = array_merge(['instId' => $this->contractSymbol], array_filter([
+            'tdMode'        => Ok::$positionTypeMap[$positionType],
+            'side'          => Ok::$orderSideMap[$orderSide],
+            'posSide'       => Ok::$positionSideMap[$positionSide],
+            'ordType'       => Ok::$orderTypeMap[Exchange::ORDER_TYPE_TRAILING],
+            'sz'            => $quantity,
+            'activePx'      => $activationPrice,
+            'callbackRatio' => $callbackRate / 100,
+        ]));
+
+        $result = $this->send();
+
+        if ($result['code'] != 0) {
+            return $this->error($result['message'], $result['code']);
+        }
+
+        return $this->response(Ok::formatOrder($result['data'][0]));
+    }
+
 
     public function open($positionSide, $volume, $env = Exchange::ENV_SWAP, $price = 0, $rate = 0)
     {
@@ -182,7 +205,11 @@ class OkSymbol implements SymbolInterface
 
         $orderSide = $positionSide == Exchange::POSITION_SIDE_SHORT ? Exchange::ORDER_SIDE_SELL : Exchange::ORDER_SIDE_BUY;
 
-        return $this->createFutureOrder($volume, $positionSide, $orderSide, Exchange::POSITION_TYPE_CROSSED, $orderType, $price);
+        if ($rate == 0) {
+            return $this->createFutureOrder($volume, $positionSide, $orderSide, Exchange::POSITION_TYPE_CROSSED, $orderType, $price);
+        }
+
+        return $this->createFutureTrailingOrder($volume, $rate, $price, $positionSide, $orderSide, Exchange::POSITION_TYPE_CROSSED);
     }
 
     public function close($positionSide, $volume, $env = Exchange::ENV_SWAP, $price = 0, $rate = 0)
@@ -194,8 +221,11 @@ class OkSymbol implements SymbolInterface
         }
         $orderSide = $positionSide == Exchange::POSITION_SIDE_SHORT ? Exchange::ORDER_SIDE_BUY : Exchange::ORDER_SIDE_SELL;
 
-        return $this->createFutureOrder($volume, $positionSide, $orderSide, Exchange::POSITION_TYPE_CROSSED, $orderType, $price);
+        if ($rate == 0) {
+            return $this->createFutureOrder($volume, $positionSide, $orderSide, Exchange::POSITION_TYPE_CROSSED, $orderType, $price);
+        }
 
+        return $this->createFutureTrailingOrder($volume, $rate, $price, $positionSide, $orderSide, Exchange::POSITION_TYPE_CROSSED);
     }
 
     public function cancelOrder($orderId, $env = Exchange::ENV_SWAP, $origClientOrderId = 0)
